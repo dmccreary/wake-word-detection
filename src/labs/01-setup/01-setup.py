@@ -1,6 +1,6 @@
 # Lab 1: Setup -- prove every part of the kit works before building on it.
 #
-# This lab does nothing clever. It exists so that when Lab 3 fails to hear a
+# This lab does nothing clever. It exists so that when Lab 4 fails to hear a
 # wake word, you already know for certain the microphone works, and can go
 # looking for the bug somewhere useful.
 #
@@ -9,7 +9,7 @@
 # editing one file instead of twenty.
 #
 # Press MODE to step through the checks. In the Speaker check, UP and DOWN
-# change the volume -- the same up/down pair Lab 3 reuses for the detection
+# change the volume -- the same up/down pair Lab 4 reuses for the detection
 # threshold.
 
 import time

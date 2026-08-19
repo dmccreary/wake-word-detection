@@ -1,6 +1,6 @@
 # Lab 2: FFT Test -- can this board do the signal processing in real time?
 #
-# Lab 3 needs to turn a live microphone stream into a sequence of spectra,
+# Lab 4 needs to turn a live microphone stream into a sequence of spectra,
 # forever, without ever missing a sample. Before writing that, measure whether
 # the chip can actually do it. This lab answers one question with a number:
 #
@@ -24,7 +24,7 @@ import config
 import dwt_timer
 import fftlab
 
-N = 256                         # feature FFT size used by Lab 3
+N = 256                         # feature FFT size used by Lab 4
 FRAME_MS = N / config.SAMPLE_RATE * 1000
 TRIALS = 10
 
@@ -161,7 +161,7 @@ verdict_lines = []
 for name, mean, best in results:
     pct = mean / FRAME_MS * 100
     # Capture and the FFT both have to fit inside one frame, and so does the
-    # comparison work Lab 3 adds on top. Anything above ~50% of the budget has
+    # comparison work Lab 4 adds on top. Anything above ~50% of the budget has
     # no room left for the rest of the pipeline.
     ok = "YES" if pct < 50 else ("TIGHT" if pct < 100 else "NO")
     print("%-14s %10.2f %9.1f%% %12s" % (name, mean, pct, ok))
@@ -171,10 +171,10 @@ print()
 if HAVE_ASM and results[-1][1] / FRAME_MS < 0.5:
     headroom = FRAME_MS / results[-1][1]
     print("The assembly FFT fits %.0fx over inside one frame." % headroom)
-    print("Lab 3's continuous pipeline is therefore comfortably possible.")
+    print("Lab 4's continuous pipeline is therefore comfortably possible.")
 else:
     print("Nothing measured here leaves room for a continuous pipeline.")
-    print("Lab 3 will drop frames on this build -- that is a real result,")
+    print("Lab 4 will drop frames on this build -- that is a real result,")
     print("and the honest fix is a faster FFT, not a smaller budget.")
 
 show(["budget %.1f ms" % FRAME_MS] + verdict_lines)

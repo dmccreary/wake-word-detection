@@ -43,6 +43,9 @@ nav:
 
   - Labs:
       - 1. Setup and Wiring: labs/01-setup/index.md
+      - 2. FFT Test: labs/02-fft-test/index.md
+      - 3. Microphone Calibration: labs/03-mic-calibration/index.md
+      - 4. Wake Word Test: labs/04-wake-word-test/index.md
 
   - Learning Graph:
       - Introduction: learning-graph/index.md

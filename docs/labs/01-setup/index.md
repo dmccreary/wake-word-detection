@@ -12,7 +12,7 @@ description: Wire the smart speaker kit, verify every peripheral, and understand
 A single program that steps through all five peripherals — LED, display, buttons, microphone,
 speaker — and proves each one works before you build anything on top of it.
 
-This is deliberately the least clever program in the course. Its value shows up in Lab 3, when
+This is deliberately the least clever program in the course. Its value shows up in Lab 4, when
 the wake-word detector fails to hear you and you already know, for certain, that the microphone
 is fine.
 
@@ -328,7 +328,7 @@ volume -> 7
 
 ---
 
-**Next:** Lab 2: FFT Test — can this chip do the DSP in real time? *(not yet written)*
+**Next:** [Lab 2: FFT Test](../02-fft-test/index.md)
 
 ## References
 

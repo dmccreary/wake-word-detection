@@ -60,7 +60,11 @@ None blocking. Two optional refinements, both low priority:
    *backend operations (auth, logging, rate limiting, deployment)* if the learning graph comes back
    thin in that region. At eight topics the description is already comfortably above the threshold,
    so this is a tuning knob rather than a gap.
-2. **Consider naming an explicit error-handling topic** — what the device says or does when the
+2. **(Resolved)** An earlier note suggested the measurement/methodology area was thin. Lab 3
+   (Microphone Calibration) now contributes a concrete cluster — noise floor, dBFS, microphone
+   sensitivity, SNR, voice-activity gating, headroom and clipping, noise spectrum, and environment
+   reporting — which strengthens that region of the graph without adding a topic heading.
+3. **Consider naming an explicit error-handling topic** — what the device says or does when the
    network, the STT provider, or the TTS provider fails *mid-interaction*, as distinct from the
    "network down before the trigger" case already covered in Module 2. This is currently implied
    across several modules rather than named once.
@@ -75,7 +79,7 @@ forward.
 ## 7. Concept Generation Readiness
 
 - **Topic breadth:** 8 major topic areas, each with 4–6 named sub-concepts (roughly 45–50
-  topic-level terms before decomposition), plus a 9-module, 25-lab structure that each contribute
+  topic-level terms before decomposition), plus a 9-module, 26-lab structure that each contribute
   additional lab-specific and measurement-specific concepts (I²S DAC wiring, TLS handshake,
   session timeout, rate limiter, intent slot, mute-and-resume, etc.).
 - **Bloom's diversity:** All six levels present (Remember 7, Understand 7, Apply 8, Analyze 5,
@@ -86,7 +90,7 @@ forward.
   learning-graph-generator needs to avoid an overly flat or overly procedural graph.
 - **Estimated concept count:** Comparable in density to the prerequisite course's description
   (which generated 574 concepts across 27 chapters from a similarly structured document), scaled
-  down for this course's narrower 9-module, 25-lab scope. The I²S topic alone contributes an
+  down for this course's narrower 9-module, 26-lab scope. The I²S topic alone contributes an
   estimated 20–25 hardware-protocol concepts. A realistic target for `learning-graph-generator` is
   **190–230 concepts** — enough to comfortably clear the ~200-concept goal without padding.
 - **Recommendation:** Proceed directly to `learning-graph-generator`. No additions are required to

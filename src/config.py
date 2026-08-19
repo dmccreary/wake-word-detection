@@ -34,7 +34,7 @@ CS_PIN = 6
 # pulls it to 0 -- so a press is a FALLING edge.
 #
 # MODE cycles the program's state; UP/DOWN adjust whatever the current mode
-# says is adjustable (volume in Lab 1, detection threshold in Lab 3).
+# says is adjustable (volume in Lab 1, detection threshold in Lab 4).
 BUTTON_MODE_PIN = 13
 BUTTON_UP_PIN = 14
 BUTTON_DOWN_PIN = 15
@@ -55,6 +55,30 @@ SAMPLE_RATE = 12800
 MIC_BUFFER_BYTES = 40000
 
 FULL_SCALE = 8388608  # 2^23, the largest magnitude a 24-bit sample can hold
+
+# --- Microphone calibration (measure this yourself in Lab 3) ----------------
+# SPEECH_FLOOR is the loudness gate that separates "someone is talking" from
+# "the room is just sitting there". Lab 4's detector uses it so that silence
+# cannot match silence -- normalized noise correlates with normalized noise
+# perfectly well, so score alone is not enough.
+#
+# The default below is a starting point for an ordinary quiet room, NOT a
+# universal constant. Lab 3 measures your actual noise floor and speaking level
+# and prints a value to paste here. A floor that is too high reads as "the
+# detector cannot hear me"; too low, and room noise scores against the
+# template all day.
+#
+# The INMP441 is specified at -26 dBFS for a 94 dB SPL input, which makes the
+# conversion dBFS = SPL - 120. The default works out to roughly 58 dB SPL:
+# above a quiet office, below conversation at a metre.
+SPEECH_FLOOR = FULL_SCALE * 0.0008
+
+# INMP441 sensitivity, used to turn a measured level into an estimated sound
+# pressure level. Nominal from the datasheet -- units vary by about +/-1 dB and
+# nothing here is acoustically calibrated, so treat any SPL figure as an
+# estimate rather than a measurement.
+MIC_DBFS_AT_94DB_SPL = -26.0
+SPL_OFFSET = 94.0 - MIC_DBFS_AT_94DB_SPL   # dBFS + SPL_OFFSET = estimated dB SPL
 
 # --- Speaker: MAX98357A I2S class-D amplifier (I2S peripheral 1, TX) --------
 # New in this course. The RP2350 has two I2S peripherals, so the microphone can
@@ -137,6 +161,21 @@ def read_samples(mic, raw, count):
     samples = [w >> 8 for w in words]
     dc = sum(samples) / len(samples)
     return [s - dc for s in samples]
+
+
+def dbfs(rms):
+    """Level in dBFS. Full scale is 0 dB, and every value below it is negative.
+
+    Returns -120.0 for silence rather than raising on log(0).
+    """
+    if rms <= 0:
+        return -120.0
+    return 20.0 * math.log(rms / FULL_SCALE) / 2.302585092994046
+
+
+def spl(rms):
+    """Estimated dB SPL from a measured level. See MIC_DBFS_AT_94DB_SPL."""
+    return dbfs(rms) + SPL_OFFSET
 
 
 def tone_buffer(freq, ms, volume=DEFAULT_VOLUME, rate=PLAYBACK_RATE):

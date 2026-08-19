@@ -1,4 +1,4 @@
-# Lab 3: Wake Word Test -- listen continuously, and say so when you hear it.
+# Lab 4: Wake Word Test -- listen continuously, and say so when you hear it.
 #
 # This is the whole point of the kit, at its smallest honest size. The
 # microphone streams without stopping, every frame becomes a spectrum, and a
@@ -52,19 +52,38 @@ BAND_HI_HZ = 6000
 # further is the first thing to suspect if the overrun counter starts moving.
 TEMPLATE_FRAMES = 40                     # 800 ms -- fits a 3-syllable phrase
 
-# A starting point, not a right answer. On synthetic speech this detector
-# scores ~0.97 for the enrolled phrase and ~0.5 for a phrase built from the
-# same sounds in a different order, so 0.80 sits sensibly between them. Real
-# speech in a real room is messier -- tuning this with UP/DOWN, and watching
-# what it does to false accepts versus false rejects, is the actual exercise.
-THRESHOLD_START = 0.80
+# A starting point, not a right answer.
+#
+# This number was chosen from a measurement, not taste. A fixed-length template
+# has no time warping, so the score falls off sharply when the phrase is spoken
+# at a different pace than it was enrolled at. Measured on synthetic speech,
+# against an enrollment that filled the whole 800 ms window:
+#
+#     phrase fills 100% of window (800 ms) -> 0.97
+#                   95%           (760 ms) -> 0.84
+#                   90%           (720 ms) -> 0.77
+#                   85%           (680 ms) -> 0.66
+#                   80%           (640 ms) -> 0.49
+#     a phrase using the same sounds in a different order -> 0.52
+#
+# So the threshold has to sit above ~0.52 to reject an impostor, but low enough
+# to accept the enrolled speaker varying their pace by the +/-10% a human
+# naturally does. 0.70 accepts down to about 88% fill and still clears the
+# impostor by ~0.18. At 0.80 a perfectly good utterance said 10% quickly is
+# rejected, which is why the obvious-looking higher number is the wrong one.
+THRESHOLD_START = 0.70
 THRESHOLD_STEP = 0.01
 
 # A normalized silence spectrum can match another normalized silence spectrum
 # almost perfectly, so score alone is not enough -- the frame has to be loud
 # enough to be speech in the first place. This gate is what stops a quiet room
 # from triggering constantly.
-SPEECH_FLOOR = config.FULL_SCALE * 0.004
+#
+# The value lives in config.py because it is MEASURED, not chosen: Lab 3
+# (Microphone Calibration) characterizes your room and your speaking distance and prints the number to
+# put there. Running this lab on the default without calibrating first is the
+# single most common reason the detector "cannot hear you".
+SPEECH_FLOOR = config.SPEECH_FLOOR
 
 # After a detection, ignore everything for a moment. Without this, one spoken
 # phrase fires on every frame it stays inside the window.
@@ -265,20 +284,43 @@ def enroll():
     # enrollment starts with sound recorded from this instant forward.
     mic.readinto(raw)
 
+    # Nothing is drawn during the capture loop on purpose. An OLED update takes
+    # several milliseconds over SPI, which would blow the 20 ms frame deadline
+    # and drop audio -- corrupting the very template we are recording.
+    speech_frames = 0
     for f in range(TEMPLATE_FRAMES):
-        vec, _ = feature_frame()
+        vec, rms = feature_frame()
+        if rms > SPEECH_FLOOR:
+            speech_frames += 1
         for b in range(BANDS):
             template_sum[f][b] += vec[b]
 
     enrollments += 1
     rebuild_template()
 
+    # How much of the window did the phrase actually occupy? This is the single
+    # most useful number to show a student, because a fixed-length template has
+    # no time warping: a phrase that fills 80% of the window scores about 0.49
+    # against one enrolled at 100%, which is below the impostor score. Pace
+    # consistency is not a nicety here, it is the whole ballgame.
+    fill = speech_frames * 100 // TEMPLATE_FRAMES
+
     oled.fill(config.BLACK)
-    oled.text("Recorded", 32, 20, config.WHITE)
-    oled.text("%d sample(s)" % enrollments, 16, 36, config.WHITE)
+    oled.text("Recorded", 32, 4, config.WHITE)
+    oled.text("%d sample(s)" % enrollments, 16, 18, config.WHITE)
+    oled.text("fill %d%%" % fill, 0, 34, config.WHITE)
+    if fill < 85:
+        oled.text("say it SLOWER", 0, 46, config.WHITE)
+    elif fill > 99:
+        oled.text("say it QUICKER", 0, 46, config.WHITE)
+    else:
+        oled.text("good pace", 0, 46, config.WHITE)
     oled.show()
-    time.sleep_ms(800)
-    print("enrolled sample %d" % enrollments)
+    time.sleep_ms(1200)
+    print("enrolled sample %d  (window fill %d%%)" % (enrollments, fill))
+    if fill < 85:
+        print("  -> phrase is short for this window; say it more deliberately")
+        print("     or lower TEMPLATE_FRAMES to match your natural pace")
 
 
 def forget():
@@ -319,7 +361,7 @@ def draw():
         oled.show()
         return
 
-    oled.text("Lab 3: " + MODE_NAMES[mode], 0, 0, config.WHITE)
+    oled.text("Lab 4: " + MODE_NAMES[mode], 0, 0, config.WHITE)
     oled.hline(0, 10, config.WIDTH, config.WHITE)
 
     if mode == MODE_ENROLL:
@@ -354,7 +396,7 @@ def draw():
     oled.show()
 
 
-print("Lab 3: Wake Word Test")
+print("Lab 4: Wake Word Test")
 print("frame = %d samples = %.1f ms; window = %d frames = %d ms"
       % (N, FRAME_MS, TEMPLATE_FRAMES, int(TEMPLATE_FRAMES * FRAME_MS)))
 print("bands = %d, bins %d..%d" % (BANDS, edges[0], edges[-1]))

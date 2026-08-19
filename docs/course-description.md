@@ -9,7 +9,7 @@ quality_score: 100
 - **Title:** Smart Speakers on a $7 Microcontroller — From Wake Word to Working Voice Assistant
 - **Course Length:** 8 weeks, or self-paced independent study
 - **Audience:** Students who have completed *Real-Time DSP on a $5 Microcontroller* (or have equivalent experience) and want to turn a wake-word detector into a working assistant
-- **Format:** Hands-on across two tracks that meet at a network boundary — 25 laboratory exercises split between the Pico 2 W and a small backend service the student writes and deploys
+- **Format:** Hands-on across two tracks that meet at a network boundary — 26 laboratory exercises split between the Pico 2 W and a small backend service the student writes and deploys
 
 ## Summary
 
@@ -80,14 +80,15 @@ What is explicitly taught from zero, with no assumed background:
 |---|---|
 | The I²S standard in full — frame formats, clocking, master/slave roles | Lab 1 |
 | I²S **output**: DACs, class-D amplifiers, and driving a speaker | Lab 1 |
-| Wi-Fi on the RP2350 and its cost to a real-time audio budget | Labs 4–6 |
-| HTTP/HTTPS requests from MicroPython | Labs 5–6 |
-| Streaming audio to a cloud speech-to-text endpoint | Labs 7–9 |
-| Intent parsing and skill routing | Labs 10–12 |
-| Text-to-speech playback over I²S | Labs 13–16 |
-| Self-trigger suppression during playback | Labs 17–18 |
-| Multi-turn conversation state | Labs 19–20 |
-| Backend authentication, logging, and rate limiting | Labs 21–23 |
+| Microphone calibration: noise floor, dBFS, SNR, and a measured gate | Lab 3 |
+| Wi-Fi on the RP2350 and its cost to a real-time audio budget | Labs 5–7 |
+| HTTP/HTTPS requests from MicroPython | Labs 6–7 |
+| Streaming audio to a cloud speech-to-text endpoint | Labs 8–10 |
+| Intent parsing and skill routing | Labs 11–13 |
+| Text-to-speech playback over I²S | Labs 14–17 |
+| Self-trigger suppression during playback | Labs 18–19 |
+| Multi-turn conversation state | Labs 20–21 |
+| Backend authentication, logging, and rate limiting | Labs 22–24 |
 
 !!! note "On I²S specifically"
     The prerequisite course used I²S, but only as much of it as reading a microphone required —
@@ -129,9 +130,9 @@ network request to a cloud provider the student configures with their own API ke
 
 ## The Laboratory Series
 
-Twenty-five labs of roughly 45–60 minutes each, in nine modules.
+Twenty-six labs of roughly 45–60 minutes each, in nine modules.
 
-### Module 0 — The Signal Path and a Trusted Baseline (Labs 1–3)
+### Module 0 — The Signal Path and a Trusted Baseline (Labs 1–4)
 
 Before adding anything, establish what the hardware does and what the existing detector is worth.
 
@@ -148,36 +149,59 @@ implementation of it, rather than from folklore.
 how much of that budget an FFT actually consumes, comparing implementations carried over from the
 prerequisite course, and confirm there is headroom for a continuous pipeline before writing one.
 
-**Lab 3 — The detector baseline.** Students stand up the wake-word detector from the prerequisite
-course (or provided starter firmware) on their own board, re-measure its false-accept and
-false-reject rates, and instrument wake-to-decision latency — the clock this entire course is
+**Lab 3 — Microphone calibration.** The detector needs one measured constant — a loudness gate
+that separates "someone is talking" from "the room is just sitting there" — because its features
+are loudness-normalized and normalized room noise correlates with normalized room noise perfectly
+well. Students measure their room's noise floor and their own speaking level at a realistic
+distance, compute a signal-to-noise ratio, verify they are not clipping, and see which frequency
+bands their room's noise actually occupies. The lab produces both a constant and, just as
+importantly, the environment description without which the next lab's accuracy numbers are not
+reportable.
+
+**Lab 4 — The detector baseline.** Students enroll the course's reference wake phrase, **"Hey
+Pico"**, on their own board and re-measure the numbers everything downstream depends on:
+false-accept rate against a shared list of deliberate confusables ("Hey, listen", "Hey, Nico",
+"Peek a boo", plus recorded conversation and background television), false-reject rate over
+repeated natural utterances, and wake-to-decision latency — the clock this entire course is
 trying not to blow.
 
-### Module 1 — Getting the Pico 2 W Online Without Losing the Microphone (Labs 4–6)
+The phrase is standardized rather than left to taste for two reasons. Acoustically, "Hey Pico"
+is well suited to the detector: two plosives give sharp temporal landmarks, and the /iː/→/oʊ/
+vowel sweep moves the formants from far apart to close together, a large and easily-captured
+change in spectral shape. Pedagogically, a common phrase makes every student's accuracy numbers
+directly comparable and lets an instructor build one shared test set. Students who want to
+experiment with their own phrase do so *after* recording a baseline.
+
+Wake phrases belonging to commercial assistants are explicitly out of bounds — not primarily for
+trademark reasons, but because saying them triggers real devices within earshot whose spoken
+replies then feed back into the microphone and corrupt the very false-accept measurement being
+taken.
+
+### Module 1 — Getting the Pico 2 W Online Without Losing the Microphone (Labs 5–7)
 
 Wi-Fi join, a minimal HTTPS client, and — the load-bearing measurement — how much CPU time and RAM
 joining a network and holding a TLS session actually costs, measured against the same real-time
 audio budget Chapter 18 of the prerequisite course established. Students confirm Core 0's sample
 deadline survives the radio coming on.
 
-### Module 2 — Shipping Audio to the Cloud (Labs 7–9)
+### Module 2 — Shipping Audio to the Cloud (Labs 8–10)
 
 Extending Post-Wake Audio Capture into a network upload: chunked streaming versus batch upload,
 calling a cloud speech-to-text endpoint, and handling the case the prerequisite course never had to
 consider — the trigger fires and the network is down.
 
-### Module 3 — From Transcript to Intent (Labs 10–12)
+### Module 3 — From Transcript to Intent (Labs 11–13)
 
 Turning free text into a structured command: a small intent-and-slot parser, a skill router with a
 handful of registered skills, and an honest fallback path for an utterance nothing recognizes.
 
-### Module 4 — Talking Back (Labs 13–16)
+### Module 4 — Talking Back (Labs 14–17)
 
 A cloud text-to-speech request, streaming synthesized audio back to the board, wiring and driving
 the I²S amplifier and speaker, and measuring the full wake-to-spoken-response latency budget
 end to end for the first time.
 
-### Module 5 — Not Hearing Yourself Talk (Labs 17–18)
+### Module 5 — Not Hearing Yourself Talk (Labs 18–19)
 
 The self-trigger problem: a speaker playing a response a few centimeters from a microphone that is
 still listening. Students implement the practical mitigation this course actually ships —
@@ -185,17 +209,17 @@ mute-and-resume around playback — and are shown, honestly, why *true* acoustic
 (an adaptive filter against a reference signal) is a further DSP project this course does not
 build.
 
-### Module 6 — Remembering the Conversation (Labs 19–20)
+### Module 6 — Remembering the Conversation (Labs 20–21)
 
 Session state on the backend, a timeout window for follow-up questions without repeating the wake
 word, and the rule for when the assistant should require the wake word again rather than guessing.
 
-### Module 7 — A Real(er) Backend (Labs 21–23)
+### Module 7 — A Real(er) Backend (Labs 22–24)
 
 API keys and request authentication, structured logging, rate limiting, and deploying the backend
 to a real host with secrets kept out of both the device firmware and source control.
 
-### Module 8 — Capstone: One Real Skill (Labs 24–25)
+### Module 8 — Capstone: One Real Skill (Labs 25–26)
 
 An end-to-end skill of the student's choosing — a timer, a trivia lookup, a smart-home-style
 toggle — built on the full pipeline and reported with the same standard the prerequisite course's
@@ -210,12 +234,13 @@ marketing page.
 | Stage | What gets measured |
 |---|---|
 | Real-time budget (Lab 2) | FFT cost as a percentage of one audio frame, and the headroom left over |
-| Wake-word baseline (Lab 3) | False-accept and false-reject rate, re-confirmed on this course's hardware |
-| Wi-Fi join and TLS (Lab 6) | CPU and RAM cost of the radio, measured against the audio-frame deadline |
-| Cloud STT round trip (Lab 9) | Upload time, transcription latency, and failure behavior with Wi-Fi forced off |
-| End-to-end response (Lab 16) | Full wake-to-spoken-response latency, wake word through spoken reply |
-| Self-trigger suppression (Lab 18) | False-accept rate *during the assistant's own playback*, before and after mitigation |
-| Capstone skill (Lab 25) | Latency and accuracy for one complete, student-chosen task |
+| Room and microphone (Lab 3) | Noise floor, speaking level, SNR, and the measured gate they imply |
+| Wake-word baseline (Lab 4) | False-accept and false-reject rate, re-confirmed on this course's hardware |
+| Wi-Fi join and TLS (Lab 7) | CPU and RAM cost of the radio, measured against the audio-frame deadline |
+| Cloud STT round trip (Lab 10) | Upload time, transcription latency, and failure behavior with Wi-Fi forced off |
+| End-to-end response (Lab 17) | Full wake-to-spoken-response latency, wake word through spoken reply |
+| Self-trigger suppression (Lab 19) | False-accept rate *during the assistant's own playback*, before and after mitigation |
+| Capstone skill (Lab 26) | Latency and accuracy for one complete, student-chosen task |
 
 ## Content Covered
 
@@ -388,15 +413,15 @@ working hardware, a working backend, or measurements, not by written answer alon
 
 | Week | Module | Labs | Milestone |
 |---|---|---|---|
-| 1 | The Signal Path and a Trusted Baseline | 1–3 | Kit wired, I²S understood, detector re-verified |
-| 2 | Getting Online | 4–6 | Board on Wi-Fi without missing an audio deadline |
-| 3 | Shipping Audio to the Cloud | 7–9 | **First real cloud transcript from a live trigger** |
-| 4 | From Transcript to Intent | 10–12 | Working intent parser and skill router |
-| 5 | Talking Back | 13–16 | **First full wake-to-spoken-response round trip** |
-| 6 | Not Hearing Yourself Talk | 17–18 | Self-trigger rate measured and suppressed |
-| 6–7 | Remembering the Conversation | 19–20 | Multi-turn follow-up handled correctly |
-| 7 | A Real(er) Backend | 21–23 | Backend deployed with auth, logging, and rate limiting |
-| 8 | Capstone | 24–25 | One complete skill, end to end, honestly measured |
+| 1 | The Signal Path and a Trusted Baseline | 1–4 | Kit wired, I²S understood, room calibrated, detector re-verified |
+| 2 | Getting Online | 5–7 | Board on Wi-Fi without missing an audio deadline |
+| 3 | Shipping Audio to the Cloud | 8–10 | **First real cloud transcript from a live trigger** |
+| 4 | From Transcript to Intent | 11–13 | Working intent parser and skill router |
+| 5 | Talking Back | 14–17 | **First full wake-to-spoken-response round trip** |
+| 6 | Not Hearing Yourself Talk | 18–19 | Self-trigger rate measured and suppressed |
+| 6–7 | Remembering the Conversation | 20–21 | Multi-turn follow-up handled correctly |
+| 7 | A Real(er) Backend | 22–24 | Backend deployed with auth, logging, and rate limiting |
+| 8 | Capstone | 25–26 | One complete skill, end to end, honestly measured |
 
 The capstone is scoped for one to two weeks and may extend past Week 8 in an independent study
 arrangement.
@@ -405,7 +430,7 @@ arrangement.
 
 | Component | Weight | Notes |
 |---|---|---|
-| Laboratory work | 30% | 25 labs; instructor decides completion vs. artifact grading |
+| Laboratory work | 30% | 26 labs; instructor decides completion vs. artifact grading |
 | Homework and quizzes | 15% | Chapter quizzes and check-your-understanding items |
 | Midterm | 15% | End of Week 5, covering Modules 0–4 |
 | Backend security review | 15% | Peer or instructor review against the Module 7 checklist |

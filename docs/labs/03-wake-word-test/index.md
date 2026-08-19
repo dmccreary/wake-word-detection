@@ -1,2 +1,0 @@
-# Wake Word Testing
-
