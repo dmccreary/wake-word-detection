@@ -1,0 +1,1623 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Wire the smart speaker kit, verify every peripheral, and understand why the microphone and the speaker each need their own I²S bus">
+      
+      
+        <meta name="author" content="Dan Mccreary">
+      
+      
+        <link rel="canonical" href="https://dmccreary.github.io/wake-word-detection/labs/01-setup/">
+      
+      
+        <link rel="prev" href="../../chapters/">
+      
+      
+        <link rel="next" href="../../learning-graph/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.12">
+    
+    
+      
+        <title>Lab 1: Setup and Wiring - Smart Speakers on a $7 Microcontroller</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2afb09e1.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../css/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#lab-1-setup-and-wiring" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Smart Speakers on a $7 Microcontroller" class="md-header__button md-logo" aria-label="Smart Speakers on a $7 Microcontroller" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Smart Speakers on a $7 Microcontroller
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Lab 1: Setup and Wiring
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/dmccreary/wake-word-detection" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub Repo
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Smart Speakers on a $7 Microcontroller" class="md-nav__button md-logo" aria-label="Smart Speakers on a $7 Microcontroller" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Smart Speakers on a $7 Microcontroller
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/dmccreary/wake-word-detection" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub Repo
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../course-description/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Course Description
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../chapters/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Chapters
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="./" class="md-nav__link md-nav__link--active">
+              
+  
+  
+  <span class="md-ellipsis">
+    Labs
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Labs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../learning-graph/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Learning Graph
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../sims/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    MicroSims
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    License
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contact
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-youll-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      What You'll Build
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#learning-objectives" class="md-nav__link">
+    <span class="md-ellipsis">
+      Learning Objectives
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#concepts-introduced" class="md-nav__link">
+    <span class="md-ellipsis">
+      Concepts Introduced
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    <span class="md-ellipsis">
+      Background
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Background">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-kit-gains-an-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      The kit gains an output
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-cant-the-microphone-and-the-speaker-share-one-i2s-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why can't the microphone and the speaker share one I²S bus?
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why can&#39;t the microphone and the speaker share one I²S bus?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-the-data-lines-are-opposite-directions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Layer 1 — the data lines are opposite directions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-stock-micropython-wont-let-you-share-the-clocks-either" class="md-nav__link">
+    <span class="md-ellipsis">
+      Layer 2 — stock MicroPython won't let you share the clocks either
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-3-you-wouldnt-want-to-share-them-anyway" class="md-nav__link">
+    <span class="md-ellipsis">
+      Layer 3 — you wouldn't want to share them anyway
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-file-owns-every-pin" class="md-nav__link">
+    <span class="md-ellipsis">
+      One file owns every pin
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Wiring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#procedure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Procedure
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Procedure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-upload-the-kit" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 1 — Upload the kit
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-run-the-setup-program" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 2 — Run the setup program
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-work-through-the-five-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 3 — Work through the five checks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-confirm-the-microphone-actually-responds" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 4 — Confirm the microphone actually responds
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expected-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      Expected Output
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#challenges" class="md-nav__link">
+    <span class="md-ellipsis">
+      Challenges
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-your-understanding" class="md-nav__link">
+    <span class="md-ellipsis">
+      Check Your Understanding
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/dmccreary/wake-word-detection/blob/main/docs/labs/01-setup/index.md" title="Edit this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="lab-1-setup-and-wiring">Lab 1: Setup and Wiring<a class="headerlink" href="#lab-1-setup-and-wiring" title="Permanent link">&para;</a></h1>
+<p><strong>Time:</strong> ~60 minutes  |  <strong>Prerequisites:</strong> a working wake-word detector from <a href="https://dmccreary.github.io/fft-benchmarking/">Real-Time DSP on a $5 Microcontroller</a>  |  <strong>Hardware:</strong> the full kit</p>
+<h2 id="what-youll-build">What You'll Build<a class="headerlink" href="#what-youll-build" title="Permanent link">&para;</a></h2>
+<p>A single program that steps through all five peripherals — LED, display, buttons, microphone,
+speaker — and proves each one works before you build anything on top of it.</p>
+<p>This is deliberately the least clever program in the course. Its value shows up in Lab 3, when
+the wake-word detector fails to hear you and you already know, for certain, that the microphone
+is fine.</p>
+<h2 id="learning-objectives">Learning Objectives<a class="headerlink" href="#learning-objectives" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Wire</strong> an I²S microphone and an I²S amplifier to the same board</li>
+<li><strong>Explain</strong> why those two devices cannot share one I²S bus</li>
+<li><strong>Describe</strong> what the <code>ws = sck + 1</code> constraint is and where it comes from</li>
+<li><strong>Centralize</strong> every pin number in one <code>config.py</code> instead of scattering them</li>
+<li><strong>Verify</strong> each peripheral independently before combining them</li>
+<li><strong>Distinguish</strong> a wiring fault from a software fault</li>
+</ul>
+<h2 id="concepts-introduced">Concepts Introduced<a class="headerlink" href="#concepts-introduced" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it means here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I²S bus direction</td>
+<td>Data lines carry audio one way only — in or out, never both</td>
+</tr>
+<tr>
+<td>I²S clock lines</td>
+<td>Bit clock and word select, generated by whichever device is master</td>
+</tr>
+<tr>
+<td>I²S master and slave</td>
+<td>Both our audio chips are slaves; the Pico must clock both</td>
+</tr>
+<tr>
+<td>PIO sideset pins</td>
+<td>How the RP2350 generates I²S clocks, and why pins must be adjacent</td>
+</tr>
+<tr>
+<td>Half-duplex peripheral</td>
+<td>One <code>machine.I2S</code> instance is RX <strong>or</strong> TX, never both</td>
+</tr>
+<tr>
+<td>Hardware configuration module</td>
+<td>One <code>config.py</code> as the single source of truth for pins</td>
+</tr>
+<tr>
+<td>Falling-edge button input</td>
+<td><code>PULL_UP</code> means a press reads 0, not 1</td>
+</tr>
+<tr>
+<td>Peripheral smoke test</td>
+<td>Proving hardware before trusting software</td>
+</tr>
+</tbody>
+</table>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<h3 id="the-kit-gains-an-output">The kit gains an output<a class="headerlink" href="#the-kit-gains-an-output" title="Permanent link">&para;</a></h3>
+<p>The prerequisite course only ever <em>listened</em>. Every lab in it ended with a number on a screen.
+This course has to <strong>talk back</strong>, which adds two things to the kit: a MAX98357A class-D
+amplifier and a small speaker.</p>
+<p>That turns out to raise a question almost every student asks within about ten minutes of
+looking at the wiring diagram.</p>
+<h3 id="why-cant-the-microphone-and-the-speaker-share-one-i2s-bus">Why can't the microphone and the speaker share one I²S bus?<a class="headerlink" href="#why-cant-the-microphone-and-the-speaker-share-one-i2s-bus" title="Permanent link">&para;</a></h3>
+<p>It's a fair question. I²S is a <em>bus</em>, and buses normally allow several devices on one set of
+wires. The INMP441 speaks I²S. The MAX98357A speaks I²S. So why does the wiring table below use
+six GPIO pins instead of four?</p>
+<p>The answer has three layers, and each one alone is enough to settle it.</p>
+<h4 id="layer-1-the-data-lines-are-opposite-directions">Layer 1 — the data lines are opposite directions<a class="headerlink" href="#layer-1-the-data-lines-are-opposite-directions" title="Permanent link">&para;</a></h4>
+<p>An I²S connection is three wires:</p>
+<table>
+<thead>
+<tr>
+<th>Wire</th>
+<th>Name</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SCK / BCLK</td>
+<td>Bit clock</td>
+<td>ticks once per bit</td>
+</tr>
+<tr>
+<td>WS / LRC</td>
+<td>Word select</td>
+<td>marks the sample/channel boundary</td>
+</tr>
+<tr>
+<td>SD / DIN</td>
+<td>Serial data</td>
+<td>the audio bits themselves</td>
+</tr>
+</tbody>
+</table>
+<p>The two clock lines are shared-able in principle — that is exactly how a normal multi-device
+I²S bus works, with one master clocking several peripherals.</p>
+<p>The <strong>data</strong> line is not. On the INMP441, <code>SD</code> is an <em>output</em>: the microphone drives it. On the
+MAX98357A, <code>DIN</code> is an <em>input</em>: the amplifier listens to it. They point opposite ways, so they
+are two separate wires no matter what else you do.</p>
+<p>So even in the best possible case, sharing saves you <strong>two</strong> jumper wires, not three.</p>
+<div class="admonition note">
+<p class="admonition-title">Tying them together does something, just not something useful</p>
+<p>Physically joining the mic's <code>SD</code> to the amp's <code>DIN</code> is not a short circuit — it is a
+loopback. The speaker would play whatever the microphone hears, continuously, with no
+software involved. It's a fun five-minute demo and a screeching feedback loop, but it is
+not a signal path any program can use.</p>
+</div>
+<h4 id="layer-2-stock-micropython-wont-let-you-share-the-clocks-either">Layer 2 — stock MicroPython won't let you share the clocks either<a class="headerlink" href="#layer-2-stock-micropython-wont-let-you-share-the-clocks-either" title="Permanent link">&para;</a></h4>
+<p>This is the part specific to our hardware, and it is the real answer.</p>
+<p>On the RP2350, <code>machine.I2S</code> is not a dedicated hardware peripheral. It is built out of <strong>PIO</strong>
+— the programmable I/O blocks — and each <code>I2S</code> object claims its own PIO state machine that
+<strong>generates</strong> the clocks itself. From MicroPython's <code>ports/rp2/machine_i2s.c</code>:</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="cp">#define MAX_I2S_RP2 (2)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="n">RX</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="n">TX</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span><span class="w"> </span><span class="n">i2s_mode_t</span><span class="p">;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ws</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="p">(</span><span class="n">sck</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="n">mp_raise_ValueError</span><span class="p">(</span><span class="n">MP_ERROR_TEXT</span><span class="p">(</span><span class="s">&quot;invalid ws (must be sck+1)&quot;</span><span class="p">));</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Three facts fall out of those few lines:</p>
+<ol>
+<li><strong>There are exactly two I²S instances</strong>, <code>id=0</code> and <code>id=1</code>.</li>
+<li><strong>Each instance is half-duplex</strong> — <code>RX</code> or <code>TX</code>, never both. One instance cannot serve a
+   microphone and a speaker at the same time.</li>
+<li><strong><code>ws</code> must be <code>sck + 1</code>.</strong> The comment in the source explains why: <em>SCK and WS are
+   implemented as PIO sideset pins, and sideset pins must be sequential.</em></li>
+</ol>
+<p>That third point is the one that closes the door. Because each instance generates its own SCK
+and WS, pointing both instances at the same two GPIO pins does not create a shared bus — it
+creates <strong>two independent state machines driving the same wires</strong>, with no phase relationship
+between them. That's pin contention, and the result is garbage on both.</p>
+<p>Neither chip can rescue you by supplying the clock instead: the INMP441 and the MAX98357A are
+both I²S <em>slaves</em>. Someone has to be master, and the only candidate is the Pico.</p>
+<div class="admonition warning">
+<p class="admonition-title">The <code>ws = sck + 1</code> rule constrains your pin choices</p>
+<p>This is a hard error, not a warning, and it bites people who pick pins by what's physically
+convenient on the breadboard. Both buses in this kit obey it — mic <code>SCK=10, WS=11</code> and
+speaker <code>BCLK=16, LRC=17</code>. If you re-map pins in <code>config.py</code>, keep each clock pair
+<strong>adjacent and in that order</strong>, or <code>machine.I2S</code> raises
+<code>ValueError: invalid ws (must be sck+1)</code> at construction.</p>
+</div>
+<h4 id="layer-3-you-wouldnt-want-to-share-them-anyway">Layer 3 — you wouldn't want to share them anyway<a class="headerlink" href="#layer-3-you-wouldnt-want-to-share-them-anyway" title="Permanent link">&para;</a></h4>
+<p>Suppose the constraint above vanished tomorrow. Sharing would still be the wrong design for
+this kit, for three reasons that matter later in the course:</p>
+<ul>
+<li><strong>The two devices run at different sample rates.</strong> The microphone captures at 12,800 Hz to
+  match the wake-word frame budget. Cloud text-to-speech typically returns audio at 16,000 Hz.
+  One shared clock cannot serve both without resampling one of them in software.</li>
+<li><strong>A shared clock is always running.</strong> The MAX98357A plays whatever sits on <code>DIN</code> whenever it
+  is clocked. You would have to feed it a continuous stream of silence the entire time you were
+  merely <em>listening</em>, or accept hiss from the speaker.</li>
+<li><strong>Separate buses let you switch the speaker off completely.</strong> Because the amplifier owns its
+  own peripheral, the code can <code>deinit()</code> it while listening and re-create it to speak. That is
+  precisely the mute-and-resume behavior this course needs when it tackles the device
+  re-triggering on its own voice.</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">It <em>is</em> possible — just not within this course's rules</p>
+<p>You can implement genuine full-duplex I²S on one clock pair by writing your own PIO
+program, and people do. That means bypassing <code>machine.I2S</code> entirely. This course, like its
+prerequisite, runs on stock MicroPython with no toolchain, so we spend two extra GPIO pins
+instead of a custom PIO assembler. Knowing <em>which</em> constraint you're paying for is the
+point.</p>
+</div>
+<h3 id="one-file-owns-every-pin">One file owns every pin<a class="headerlink" href="#one-file-owns-every-pin" title="Permanent link">&para;</a></h3>
+<p>Nothing in this kit hardcodes a pin number except <a href="https://github.com/dmccreary/wake-word-detection/blob/main/src/config.py"><code>config.py</code></a>.
+Every lab imports it. Re-wiring the kit means editing one file, and a lab that runs on your
+bench runs on someone else's differently-wired bench without modification.</p>
+<h2 id="wiring">Wiring<a class="headerlink" href="#wiring" title="Permanent link">&para;</a></h2>
+<p>Two independent I²S buses, plus SPI for the display and three plain GPIO inputs:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>                     ┌────────────────────┐
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>   GPIO 10  ────────►│ SCK                │
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>   GPIO 11  ────────►│ WS      INMP441    │   I2S id=0, RX  (Pico listens)
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>   GPIO 12  ◄────────│ SD                 │
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                     │ L/R ── GND         │
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                     └────────────────────┘
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                     ┌────────────────────┐
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>   GPIO 16  ────────►│ BCLK               │
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>   GPIO 17  ────────►│ LRC     MAX98357A  │   I2S id=1, TX  (Pico talks)
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>   GPIO 18  ────────►│ DIN                │
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>   GPIO 19  ────────►│ SD (shutdown)      │
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>                     └────────────────────┘
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>   arrows show which end drives the wire
+</span></code></pre></div>
+<p><strong>Display — SSD1306 128×64 OLED (SPI0)</strong></p>
+<table>
+<thead>
+<tr>
+<th>OLED</th>
+<th>Pico 2</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VCC</td>
+<td>3V3</td>
+<td>power</td>
+</tr>
+<tr>
+<td>GND</td>
+<td>GND</td>
+<td>ground</td>
+</tr>
+<tr>
+<td>SCL / CLK</td>
+<td><strong>GPIO 2</strong></td>
+<td>SPI clock</td>
+</tr>
+<tr>
+<td>SDA / MOSI</td>
+<td><strong>GPIO 3</strong></td>
+<td>SPI data</td>
+</tr>
+<tr>
+<td>RES</td>
+<td><strong>GPIO 4</strong></td>
+<td>reset</td>
+</tr>
+<tr>
+<td>DC</td>
+<td><strong>GPIO 5</strong></td>
+<td>data/command select</td>
+</tr>
+<tr>
+<td>CS</td>
+<td><strong>GPIO 6</strong></td>
+<td>chip select</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Microphone — INMP441 (I²S bus 0, receive)</strong></p>
+<table>
+<thead>
+<tr>
+<th>INMP441</th>
+<th>Pico 2</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VDD</td>
+<td>3V3</td>
+<td>power</td>
+</tr>
+<tr>
+<td>GND</td>
+<td>GND</td>
+<td>ground</td>
+</tr>
+<tr>
+<td>SCK</td>
+<td><strong>GPIO 10</strong></td>
+<td>bit clock</td>
+</tr>
+<tr>
+<td>WS</td>
+<td><strong>GPIO 11</strong></td>
+<td>word select — note <code>11 = 10 + 1</code></td>
+</tr>
+<tr>
+<td>SD</td>
+<td><strong>GPIO 12</strong></td>
+<td>serial data (mic → Pico)</td>
+</tr>
+<tr>
+<td>L/R</td>
+<td>GND</td>
+<td>selects the left channel</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Speaker — MAX98357A (I²S bus 1, transmit)</strong></p>
+<table>
+<thead>
+<tr>
+<th>MAX98357A</th>
+<th>Pico 2</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VIN</td>
+<td>VBUS (5V)</td>
+<td>power — see the warning below</td>
+</tr>
+<tr>
+<td>GND</td>
+<td>GND</td>
+<td>ground</td>
+</tr>
+<tr>
+<td>BCLK</td>
+<td><strong>GPIO 16</strong></td>
+<td>bit clock</td>
+</tr>
+<tr>
+<td>LRC</td>
+<td><strong>GPIO 17</strong></td>
+<td>word select — note <code>17 = 16 + 1</code></td>
+</tr>
+<tr>
+<td>DIN</td>
+<td><strong>GPIO 18</strong></td>
+<td>serial data (Pico → amp)</td>
+</tr>
+<tr>
+<td>SD</td>
+<td><strong>GPIO 19</strong></td>
+<td>shutdown, optional</td>
+</tr>
+<tr>
+<td><code>+</code> / <code>−</code></td>
+<td>speaker leads</td>
+<td>8Ω speaker</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Power the amplifier from 5V, not 3V3</p>
+<p>The MAX98357A will run off 3V3, but quietly — its output power scales with supply voltage,
+and the Pico's 3V3 regulator is not sized to drive a speaker on top of everything else.
+Use <strong>VBUS</strong> (pin 40, the 5V rail from USB). A loud amplifier browning out the 3V3 rail
+mid-sentence produces bugs that look like software faults and are not.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">The amplifier's SD pin is optional but useful</p>
+<p>Left unconnected, the MAX98357A uses its default gain and is always enabled. Wiring it to
+GPIO 19 lets software shut the amplifier off completely — the hardware half of the
+mute-and-resume mitigation later in the course. Set <code>SPK_ENABLE_PIN = None</code> in <code>config.py</code>
+if you leave it unwired.</p>
+</div>
+<p><strong>Buttons — three momentary push buttons</strong></p>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Pico 2</th>
+<th>Role in this lab</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MODE</td>
+<td><strong>GPIO 13</strong></td>
+<td>advance to the next check</td>
+</tr>
+<tr>
+<td>UP</td>
+<td><strong>GPIO 14</strong></td>
+<td>volume up</td>
+</tr>
+<tr>
+<td>DOWN</td>
+<td><strong>GPIO 15</strong></td>
+<td>volume down</td>
+</tr>
+</tbody>
+</table>
+<p>Each button's other leg goes to <strong>GND</strong>.</p>
+<div class="admonition note">
+<p class="admonition-title">A press reads 0, not 1</p>
+<p><code>Pin.PULL_UP</code> holds each pin at 1 until a press drags it to 0, so a press is a <strong>falling</strong>
+edge. Nearly everyone writes <code>if button.value():</code> the first time and wonders why the
+program reacts when they <em>let go</em>.</p>
+</div>
+<h2 id="procedure">Procedure<a class="headerlink" href="#procedure" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-upload-the-kit">Step 1 — Upload the kit<a class="headerlink" href="#step-1-upload-the-kit" title="Permanent link">&para;</a></h3>
+<p>From <code>src/</code>:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./upload-code.sh
+</span></code></pre></div>
+<p>Quit or disconnect Thonny first — only one program can use the Pico's serial port at a time.</p>
+<h3 id="step-2-run-the-setup-program">Step 2 — Run the setup program<a class="headerlink" href="#step-2-run-the-setup-program" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Lab 1: Setup -- prove every part of the kit works before building on it.</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">#</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># This lab does nothing clever. It exists so that when Lab 3 fails to hear a</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># wake word, you already know for certain the microphone works, and can go</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># looking for the bug somewhere useful.</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1">#</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># It also introduces the pattern every later lab uses: nothing here knows a pin</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># number. Every peripheral comes from config.py, so re-wiring the kit means</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># editing one file instead of twenty.</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1">#</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># Press MODE to step through the checks. In the Speaker check, UP and DOWN</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># change the volume -- the same up/down pair Lab 3 reuses for the detection</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># threshold.</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="kn">import</span> <span class="nn">time</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="kn">import</span> <span class="nn">config</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="n">CHECKS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;LED&quot;</span><span class="p">,</span> <span class="s2">&quot;Display&quot;</span><span class="p">,</span> <span class="s2">&quot;Buttons&quot;</span><span class="p">,</span> <span class="s2">&quot;Microphone&quot;</span><span class="p">,</span> <span class="s2">&quot;Speaker&quot;</span><span class="p">]</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="n">oled</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">init_display</span><span class="p">()</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="n">led</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">init_led</span><span class="p">()</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="n">button_mode</span><span class="p">,</span> <span class="n">button_up</span><span class="p">,</span> <span class="n">button_down</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">init_buttons</span><span class="p">()</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="n">amp_enable</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">init_amp_enable</span><span class="p">()</span>
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="n">check</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="n">volume</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">DEFAULT_VOLUME</span>
+</span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="n">press_count</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="n">mic_peak</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>
+</span><span id="__span-3-31"><a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a><span class="c1"># The microphone and speaker are opened on demand rather than up front. Both</span>
+</span><span id="__span-3-32"><a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a><span class="c1"># claim an I2S peripheral, and holding one open while it is not in use is a</span>
+</span><span id="__span-3-33"><a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a><span class="c1"># habit worth not forming on a chip with only two.</span>
+</span><span id="__span-3-34"><a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="n">mic</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-35"><a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a><span class="n">speaker</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-36"><a id="__codelineno-3-36" name="__codelineno-3-36" href="#__codelineno-3-36"></a>
+</span><span id="__span-3-37"><a id="__codelineno-3-37" name="__codelineno-3-37" href="#__codelineno-3-37"></a><span class="n">last</span> <span class="o">=</span> <span class="p">[</span><span class="n">button_mode</span><span class="o">.</span><span class="n">value</span><span class="p">(),</span> <span class="n">button_up</span><span class="o">.</span><span class="n">value</span><span class="p">(),</span> <span class="n">button_down</span><span class="o">.</span><span class="n">value</span><span class="p">()]</span>
+</span><span id="__span-3-38"><a id="__codelineno-3-38" name="__codelineno-3-38" href="#__codelineno-3-38"></a><span class="n">last_press_ms</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">ticks_ms</span><span class="p">()</span>
+</span><span id="__span-3-39"><a id="__codelineno-3-39" name="__codelineno-3-39" href="#__codelineno-3-39"></a>
+</span><span id="__span-3-40"><a id="__codelineno-3-40" name="__codelineno-3-40" href="#__codelineno-3-40"></a>
+</span><span id="__span-3-41"><a id="__codelineno-3-41" name="__codelineno-3-41" href="#__codelineno-3-41"></a><span class="k">def</span> <span class="nf">pressed</span><span class="p">(</span><span class="n">pin</span><span class="p">,</span> <span class="n">previous</span><span class="p">):</span>
+</span><span id="__span-3-42"><a id="__codelineno-3-42" name="__codelineno-3-42" href="#__codelineno-3-42"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;True on the falling edge -- the moment the button goes 1 -&gt; 0.&quot;&quot;&quot;</span>
+</span><span id="__span-3-43"><a id="__codelineno-3-43" name="__codelineno-3-43" href="#__codelineno-3-43"></a>    <span class="k">return</span> <span class="n">previous</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">pin</span><span class="o">.</span><span class="n">value</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+</span><span id="__span-3-44"><a id="__codelineno-3-44" name="__codelineno-3-44" href="#__codelineno-3-44"></a>
+</span><span id="__span-3-45"><a id="__codelineno-3-45" name="__codelineno-3-45" href="#__codelineno-3-45"></a>
+</span><span id="__span-3-46"><a id="__codelineno-3-46" name="__codelineno-3-46" href="#__codelineno-3-46"></a><span class="k">def</span> <span class="nf">close_peripherals</span><span class="p">():</span>
+</span><span id="__span-3-47"><a id="__codelineno-3-47" name="__codelineno-3-47" href="#__codelineno-3-47"></a>    <span class="k">global</span> <span class="n">mic</span><span class="p">,</span> <span class="n">speaker</span>
+</span><span id="__span-3-48"><a id="__codelineno-3-48" name="__codelineno-3-48" href="#__codelineno-3-48"></a>    <span class="k">if</span> <span class="n">mic</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-49"><a id="__codelineno-3-49" name="__codelineno-3-49" href="#__codelineno-3-49"></a>        <span class="n">mic</span><span class="o">.</span><span class="n">deinit</span><span class="p">()</span>
+</span><span id="__span-3-50"><a id="__codelineno-3-50" name="__codelineno-3-50" href="#__codelineno-3-50"></a>        <span class="n">mic</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-51"><a id="__codelineno-3-51" name="__codelineno-3-51" href="#__codelineno-3-51"></a>    <span class="k">if</span> <span class="n">speaker</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-52"><a id="__codelineno-3-52" name="__codelineno-3-52" href="#__codelineno-3-52"></a>        <span class="n">speaker</span><span class="o">.</span><span class="n">deinit</span><span class="p">()</span>
+</span><span id="__span-3-53"><a id="__codelineno-3-53" name="__codelineno-3-53" href="#__codelineno-3-53"></a>        <span class="n">speaker</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-54"><a id="__codelineno-3-54" name="__codelineno-3-54" href="#__codelineno-3-54"></a>
+</span><span id="__span-3-55"><a id="__codelineno-3-55" name="__codelineno-3-55" href="#__codelineno-3-55"></a>
+</span><span id="__span-3-56"><a id="__codelineno-3-56" name="__codelineno-3-56" href="#__codelineno-3-56"></a><span class="k">def</span> <span class="nf">draw</span><span class="p">(</span><span class="n">line2</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">line3</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">line4</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">):</span>
+</span><span id="__span-3-57"><a id="__codelineno-3-57" name="__codelineno-3-57" href="#__codelineno-3-57"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">BLACK</span><span class="p">)</span>
+</span><span id="__span-3-58"><a id="__codelineno-3-58" name="__codelineno-3-58" href="#__codelineno-3-58"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;Lab 1: Setup&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-59"><a id="__codelineno-3-59" name="__codelineno-3-59" href="#__codelineno-3-59"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">hline</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WIDTH</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-60"><a id="__codelineno-3-60" name="__codelineno-3-60" href="#__codelineno-3-60"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">check</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">CHECKS</span><span class="p">),</span> <span class="n">CHECKS</span><span class="p">[</span><span class="n">check</span><span class="p">]),</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span>
+</span><span id="__span-3-61"><a id="__codelineno-3-61" name="__codelineno-3-61" href="#__codelineno-3-61"></a>              <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-62"><a id="__codelineno-3-62" name="__codelineno-3-62" href="#__codelineno-3-62"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">line2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-63"><a id="__codelineno-3-63" name="__codelineno-3-63" href="#__codelineno-3-63"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">line3</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">38</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-64"><a id="__codelineno-3-64" name="__codelineno-3-64" href="#__codelineno-3-64"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">line4</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">48</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-65"><a id="__codelineno-3-65" name="__codelineno-3-65" href="#__codelineno-3-65"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;MODE=next&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">56</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-66"><a id="__codelineno-3-66" name="__codelineno-3-66" href="#__codelineno-3-66"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</span><span id="__span-3-67"><a id="__codelineno-3-67" name="__codelineno-3-67" href="#__codelineno-3-67"></a>
+</span><span id="__span-3-68"><a id="__codelineno-3-68" name="__codelineno-3-68" href="#__codelineno-3-68"></a>
+</span><span id="__span-3-69"><a id="__codelineno-3-69" name="__codelineno-3-69" href="#__codelineno-3-69"></a><span class="k">def</span> <span class="nf">check_led</span><span class="p">():</span>
+</span><span id="__span-3-70"><a id="__codelineno-3-70" name="__codelineno-3-70" href="#__codelineno-3-70"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Blink the onboard LED. Proves code is running at all.&quot;&quot;&quot;</span>
+</span><span id="__span-3-71"><a id="__codelineno-3-71" name="__codelineno-3-71" href="#__codelineno-3-71"></a>    <span class="n">led</span><span class="o">.</span><span class="n">toggle</span><span class="p">()</span>
+</span><span id="__span-3-72"><a id="__codelineno-3-72" name="__codelineno-3-72" href="#__codelineno-3-72"></a>    <span class="n">draw</span><span class="p">(</span><span class="s2">&quot;Onboard LED&quot;</span><span class="p">,</span> <span class="s2">&quot;blinking 1 Hz&quot;</span><span class="p">,</span> <span class="s2">&quot;state: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">led</span><span class="o">.</span><span class="n">value</span><span class="p">())</span>
+</span><span id="__span-3-73"><a id="__codelineno-3-73" name="__codelineno-3-73" href="#__codelineno-3-73"></a>
+</span><span id="__span-3-74"><a id="__codelineno-3-74" name="__codelineno-3-74" href="#__codelineno-3-74"></a>
+</span><span id="__span-3-75"><a id="__codelineno-3-75" name="__codelineno-3-75" href="#__codelineno-3-75"></a><span class="k">def</span> <span class="nf">check_display</span><span class="p">():</span>
+</span><span id="__span-3-76"><a id="__codelineno-3-76" name="__codelineno-3-76" href="#__codelineno-3-76"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Draw shapes. Proves the SPI wiring and the framebuffer.&quot;&quot;&quot;</span>
+</span><span id="__span-3-77"><a id="__codelineno-3-77" name="__codelineno-3-77" href="#__codelineno-3-77"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">BLACK</span><span class="p">)</span>
+</span><span id="__span-3-78"><a id="__codelineno-3-78" name="__codelineno-3-78" href="#__codelineno-3-78"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;Lab 1: Setup&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-79"><a id="__codelineno-3-79" name="__codelineno-3-79" href="#__codelineno-3-79"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">hline</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WIDTH</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-80"><a id="__codelineno-3-80" name="__codelineno-3-80" href="#__codelineno-3-80"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;2/5 Display&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-81"><a id="__codelineno-3-81" name="__codelineno-3-81" href="#__codelineno-3-81"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-82"><a id="__codelineno-3-82" name="__codelineno-3-82" href="#__codelineno-3-82"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">fill_rect</span><span class="p">(</span><span class="mi">52</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-83"><a id="__codelineno-3-83" name="__codelineno-3-83" href="#__codelineno-3-83"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">line</span><span class="p">(</span><span class="mi">96</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="mi">124</span><span class="p">,</span> <span class="mi">52</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-84"><a id="__codelineno-3-84" name="__codelineno-3-84" href="#__codelineno-3-84"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;MODE=next&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">56</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-85"><a id="__codelineno-3-85" name="__codelineno-3-85" href="#__codelineno-3-85"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</span><span id="__span-3-86"><a id="__codelineno-3-86" name="__codelineno-3-86" href="#__codelineno-3-86"></a>
+</span><span id="__span-3-87"><a id="__codelineno-3-87" name="__codelineno-3-87" href="#__codelineno-3-87"></a>
+</span><span id="__span-3-88"><a id="__codelineno-3-88" name="__codelineno-3-88" href="#__codelineno-3-88"></a><span class="k">def</span> <span class="nf">check_buttons</span><span class="p">():</span>
+</span><span id="__span-3-89"><a id="__codelineno-3-89" name="__codelineno-3-89" href="#__codelineno-3-89"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Report which buttons are held. Proves all three are wired and pulled up.</span>
+</span><span id="__span-3-90"><a id="__codelineno-3-90" name="__codelineno-3-90" href="#__codelineno-3-90"></a>
+</span><span id="__span-3-91"><a id="__codelineno-3-91" name="__codelineno-3-91" href="#__codelineno-3-91"></a><span class="sd">    PULL_UP means an unpressed button reads 1, so &quot;down&quot; here means value 0.</span>
+</span><span id="__span-3-92"><a id="__codelineno-3-92" name="__codelineno-3-92" href="#__codelineno-3-92"></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="__span-3-93"><a id="__codelineno-3-93" name="__codelineno-3-93" href="#__codelineno-3-93"></a>    <span class="n">held</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+</span><span id="__span-3-94"><a id="__codelineno-3-94" name="__codelineno-3-94" href="#__codelineno-3-94"></a>    <span class="n">held</span> <span class="o">+=</span> <span class="s2">&quot;U&quot;</span> <span class="k">if</span> <span class="n">button_up</span><span class="o">.</span><span class="n">value</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;-&quot;</span>
+</span><span id="__span-3-95"><a id="__codelineno-3-95" name="__codelineno-3-95" href="#__codelineno-3-95"></a>    <span class="n">held</span> <span class="o">+=</span> <span class="s2">&quot;D&quot;</span> <span class="k">if</span> <span class="n">button_down</span><span class="o">.</span><span class="n">value</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;-&quot;</span>
+</span><span id="__span-3-96"><a id="__codelineno-3-96" name="__codelineno-3-96" href="#__codelineno-3-96"></a>    <span class="n">draw</span><span class="p">(</span><span class="s2">&quot;UP/DOWN held:&quot;</span><span class="p">,</span> <span class="s2">&quot;   </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">held</span><span class="p">,</span> <span class="s2">&quot;presses: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">press_count</span><span class="p">)</span>
+</span><span id="__span-3-97"><a id="__codelineno-3-97" name="__codelineno-3-97" href="#__codelineno-3-97"></a>
+</span><span id="__span-3-98"><a id="__codelineno-3-98" name="__codelineno-3-98" href="#__codelineno-3-98"></a>
+</span><span id="__span-3-99"><a id="__codelineno-3-99" name="__codelineno-3-99" href="#__codelineno-3-99"></a><span class="k">def</span> <span class="nf">check_microphone</span><span class="p">():</span>
+</span><span id="__span-3-100"><a id="__codelineno-3-100" name="__codelineno-3-100" href="#__codelineno-3-100"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Capture 256 samples and report peak swing. Proves the mic hears.&quot;&quot;&quot;</span>
+</span><span id="__span-3-101"><a id="__codelineno-3-101" name="__codelineno-3-101" href="#__codelineno-3-101"></a>    <span class="k">global</span> <span class="n">mic</span><span class="p">,</span> <span class="n">mic_peak</span>
+</span><span id="__span-3-102"><a id="__codelineno-3-102" name="__codelineno-3-102" href="#__codelineno-3-102"></a>    <span class="k">if</span> <span class="n">mic</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-103"><a id="__codelineno-3-103" name="__codelineno-3-103" href="#__codelineno-3-103"></a>        <span class="n">mic</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">init_microphone</span><span class="p">()</span>
+</span><span id="__span-3-104"><a id="__codelineno-3-104" name="__codelineno-3-104" href="#__codelineno-3-104"></a>        <span class="c1"># The mic needs a moment to settle after power-up; the first reads are</span>
+</span><span id="__span-3-105"><a id="__codelineno-3-105" name="__codelineno-3-105" href="#__codelineno-3-105"></a>        <span class="c1"># garbage, so throw them away.</span>
+</span><span id="__span-3-106"><a id="__codelineno-3-106" name="__codelineno-3-106" href="#__codelineno-3-106"></a>        <span class="n">settle</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="mi">256</span> <span class="o">*</span> <span class="mi">4</span><span class="p">)</span>
+</span><span id="__span-3-107"><a id="__codelineno-3-107" name="__codelineno-3-107" href="#__codelineno-3-107"></a>        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+</span><span id="__span-3-108"><a id="__codelineno-3-108" name="__codelineno-3-108" href="#__codelineno-3-108"></a>            <span class="n">mic</span><span class="o">.</span><span class="n">readinto</span><span class="p">(</span><span class="n">settle</span><span class="p">)</span>
+</span><span id="__span-3-109"><a id="__codelineno-3-109" name="__codelineno-3-109" href="#__codelineno-3-109"></a>            <span class="n">time</span><span class="o">.</span><span class="n">sleep_ms</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+</span><span id="__span-3-110"><a id="__codelineno-3-110" name="__codelineno-3-110" href="#__codelineno-3-110"></a>
+</span><span id="__span-3-111"><a id="__codelineno-3-111" name="__codelineno-3-111" href="#__codelineno-3-111"></a>    <span class="n">raw</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="mi">256</span> <span class="o">*</span> <span class="mi">4</span><span class="p">)</span>
+</span><span id="__span-3-112"><a id="__codelineno-3-112" name="__codelineno-3-112" href="#__codelineno-3-112"></a>    <span class="n">samples</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">read_samples</span><span class="p">(</span><span class="n">mic</span><span class="p">,</span> <span class="n">raw</span><span class="p">,</span> <span class="mi">256</span><span class="p">)</span>
+</span><span id="__span-3-113"><a id="__codelineno-3-113" name="__codelineno-3-113" href="#__codelineno-3-113"></a>    <span class="n">mic_peak</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">samples</span><span class="p">)</span>
+</span><span id="__span-3-114"><a id="__codelineno-3-114" name="__codelineno-3-114" href="#__codelineno-3-114"></a>    <span class="n">pct</span> <span class="o">=</span> <span class="n">mic_peak</span> <span class="o">/</span> <span class="n">config</span><span class="o">.</span><span class="n">FULL_SCALE</span> <span class="o">*</span> <span class="mi">100</span>
+</span><span id="__span-3-115"><a id="__codelineno-3-115" name="__codelineno-3-115" href="#__codelineno-3-115"></a>
+</span><span id="__span-3-116"><a id="__codelineno-3-116" name="__codelineno-3-116" href="#__codelineno-3-116"></a>    <span class="n">bar</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">pct</span> <span class="o">/</span> <span class="mi">20</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">WIDTH</span> <span class="o">-</span> <span class="mi">4</span><span class="p">))</span>
+</span><span id="__span-3-117"><a id="__codelineno-3-117" name="__codelineno-3-117" href="#__codelineno-3-117"></a>    <span class="n">draw</span><span class="p">(</span><span class="s2">&quot;Make a noise&quot;</span><span class="p">,</span> <span class="s2">&quot;peak </span><span class="si">%.2f%%</span><span class="s2"> FS&quot;</span> <span class="o">%</span> <span class="n">pct</span><span class="p">)</span>
+</span><span id="__span-3-118"><a id="__codelineno-3-118" name="__codelineno-3-118" href="#__codelineno-3-118"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">46</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WIDTH</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-119"><a id="__codelineno-3-119" name="__codelineno-3-119" href="#__codelineno-3-119"></a>    <span class="k">if</span> <span class="n">bar</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="__span-3-120"><a id="__codelineno-3-120" name="__codelineno-3-120" href="#__codelineno-3-120"></a>        <span class="n">oled</span><span class="o">.</span><span class="n">fill_rect</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">48</span><span class="p">,</span> <span class="n">bar</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-121"><a id="__codelineno-3-121" name="__codelineno-3-121" href="#__codelineno-3-121"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</span><span id="__span-3-122"><a id="__codelineno-3-122" name="__codelineno-3-122" href="#__codelineno-3-122"></a>
+</span><span id="__span-3-123"><a id="__codelineno-3-123" name="__codelineno-3-123" href="#__codelineno-3-123"></a>
+</span><span id="__span-3-124"><a id="__codelineno-3-124" name="__codelineno-3-124" href="#__codelineno-3-124"></a><span class="k">def</span> <span class="nf">check_speaker</span><span class="p">():</span>
+</span><span id="__span-3-125"><a id="__codelineno-3-125" name="__codelineno-3-125" href="#__codelineno-3-125"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Play a short beep. UP/DOWN change the volume it plays at.&quot;&quot;&quot;</span>
+</span><span id="__span-3-126"><a id="__codelineno-3-126" name="__codelineno-3-126" href="#__codelineno-3-126"></a>    <span class="k">global</span> <span class="n">speaker</span>
+</span><span id="__span-3-127"><a id="__codelineno-3-127" name="__codelineno-3-127" href="#__codelineno-3-127"></a>    <span class="k">if</span> <span class="n">speaker</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-128"><a id="__codelineno-3-128" name="__codelineno-3-128" href="#__codelineno-3-128"></a>        <span class="n">speaker</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">init_speaker</span><span class="p">()</span>
+</span><span id="__span-3-129"><a id="__codelineno-3-129" name="__codelineno-3-129" href="#__codelineno-3-129"></a>    <span class="n">draw</span><span class="p">(</span><span class="s2">&quot;UP/DOWN volume&quot;</span><span class="p">,</span> <span class="s2">&quot;volume: </span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">volume</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">VOLUME_STEPS</span><span class="p">),</span>
+</span><span id="__span-3-130"><a id="__codelineno-3-130" name="__codelineno-3-130" href="#__codelineno-3-130"></a>         <span class="s2">&quot;beeping...&quot;</span><span class="p">)</span>
+</span><span id="__span-3-131"><a id="__codelineno-3-131" name="__codelineno-3-131" href="#__codelineno-3-131"></a>    <span class="n">config</span><span class="o">.</span><span class="n">play_tone</span><span class="p">(</span><span class="n">speaker</span><span class="p">,</span> <span class="mi">880</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="n">volume</span><span class="p">)</span>
+</span><span id="__span-3-132"><a id="__codelineno-3-132" name="__codelineno-3-132" href="#__codelineno-3-132"></a>
+</span><span id="__span-3-133"><a id="__codelineno-3-133" name="__codelineno-3-133" href="#__codelineno-3-133"></a>
+</span><span id="__span-3-134"><a id="__codelineno-3-134" name="__codelineno-3-134" href="#__codelineno-3-134"></a><span class="n">RUNNERS</span> <span class="o">=</span> <span class="p">[</span><span class="n">check_led</span><span class="p">,</span> <span class="n">check_display</span><span class="p">,</span> <span class="n">check_buttons</span><span class="p">,</span> <span class="n">check_microphone</span><span class="p">,</span>
+</span><span id="__span-3-135"><a id="__codelineno-3-135" name="__codelineno-3-135" href="#__codelineno-3-135"></a>           <span class="n">check_speaker</span><span class="p">]</span>
+</span><span id="__span-3-136"><a id="__codelineno-3-136" name="__codelineno-3-136" href="#__codelineno-3-136"></a>
+</span><span id="__span-3-137"><a id="__codelineno-3-137" name="__codelineno-3-137" href="#__codelineno-3-137"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Lab 1: Setup. MODE steps through checks, UP/DOWN adjust volume.&quot;</span><span class="p">)</span>
+</span><span id="__span-3-138"><a id="__codelineno-3-138" name="__codelineno-3-138" href="#__codelineno-3-138"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Checks:&quot;</span><span class="p">,</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">CHECKS</span><span class="p">))</span>
+</span><span id="__span-3-139"><a id="__codelineno-3-139" name="__codelineno-3-139" href="#__codelineno-3-139"></a><span class="n">draw</span><span class="p">(</span><span class="s2">&quot;Starting...&quot;</span><span class="p">)</span>
+</span><span id="__span-3-140"><a id="__codelineno-3-140" name="__codelineno-3-140" href="#__codelineno-3-140"></a>
+</span><span id="__span-3-141"><a id="__codelineno-3-141" name="__codelineno-3-141" href="#__codelineno-3-141"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-3-142"><a id="__codelineno-3-142" name="__codelineno-3-142" href="#__codelineno-3-142"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-3-143"><a id="__codelineno-3-143" name="__codelineno-3-143" href="#__codelineno-3-143"></a>        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">ticks_ms</span><span class="p">()</span>
+</span><span id="__span-3-144"><a id="__codelineno-3-144" name="__codelineno-3-144" href="#__codelineno-3-144"></a>        <span class="n">settled</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">ticks_diff</span><span class="p">(</span><span class="n">now</span><span class="p">,</span> <span class="n">last_press_ms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">DEBOUNCE_MS</span>
+</span><span id="__span-3-145"><a id="__codelineno-3-145" name="__codelineno-3-145" href="#__codelineno-3-145"></a>
+</span><span id="__span-3-146"><a id="__codelineno-3-146" name="__codelineno-3-146" href="#__codelineno-3-146"></a>        <span class="k">if</span> <span class="n">settled</span> <span class="ow">and</span> <span class="n">pressed</span><span class="p">(</span><span class="n">button_mode</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+</span><span id="__span-3-147"><a id="__codelineno-3-147" name="__codelineno-3-147" href="#__codelineno-3-147"></a>            <span class="n">close_peripherals</span><span class="p">()</span>
+</span><span id="__span-3-148"><a id="__codelineno-3-148" name="__codelineno-3-148" href="#__codelineno-3-148"></a>            <span class="n">check</span> <span class="o">=</span> <span class="p">(</span><span class="n">check</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">CHECKS</span><span class="p">)</span>
+</span><span id="__span-3-149"><a id="__codelineno-3-149" name="__codelineno-3-149" href="#__codelineno-3-149"></a>            <span class="n">last_press_ms</span> <span class="o">=</span> <span class="n">now</span>
+</span><span id="__span-3-150"><a id="__codelineno-3-150" name="__codelineno-3-150" href="#__codelineno-3-150"></a>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;check -&gt;&quot;</span><span class="p">,</span> <span class="n">CHECKS</span><span class="p">[</span><span class="n">check</span><span class="p">])</span>
+</span><span id="__span-3-151"><a id="__codelineno-3-151" name="__codelineno-3-151" href="#__codelineno-3-151"></a>
+</span><span id="__span-3-152"><a id="__codelineno-3-152" name="__codelineno-3-152" href="#__codelineno-3-152"></a>        <span class="k">if</span> <span class="n">settled</span> <span class="ow">and</span> <span class="n">pressed</span><span class="p">(</span><span class="n">button_up</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+</span><span id="__span-3-153"><a id="__codelineno-3-153" name="__codelineno-3-153" href="#__codelineno-3-153"></a>            <span class="n">press_count</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-3-154"><a id="__codelineno-3-154" name="__codelineno-3-154" href="#__codelineno-3-154"></a>            <span class="n">volume</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">VOLUME_STEPS</span><span class="p">,</span> <span class="n">volume</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-3-155"><a id="__codelineno-3-155" name="__codelineno-3-155" href="#__codelineno-3-155"></a>            <span class="n">last_press_ms</span> <span class="o">=</span> <span class="n">now</span>
+</span><span id="__span-3-156"><a id="__codelineno-3-156" name="__codelineno-3-156" href="#__codelineno-3-156"></a>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;volume -&gt;&quot;</span><span class="p">,</span> <span class="n">volume</span><span class="p">)</span>
+</span><span id="__span-3-157"><a id="__codelineno-3-157" name="__codelineno-3-157" href="#__codelineno-3-157"></a>
+</span><span id="__span-3-158"><a id="__codelineno-3-158" name="__codelineno-3-158" href="#__codelineno-3-158"></a>        <span class="k">if</span> <span class="n">settled</span> <span class="ow">and</span> <span class="n">pressed</span><span class="p">(</span><span class="n">button_down</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="mi">2</span><span class="p">]):</span>
+</span><span id="__span-3-159"><a id="__codelineno-3-159" name="__codelineno-3-159" href="#__codelineno-3-159"></a>            <span class="n">press_count</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-3-160"><a id="__codelineno-3-160" name="__codelineno-3-160" href="#__codelineno-3-160"></a>            <span class="n">volume</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">volume</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-3-161"><a id="__codelineno-3-161" name="__codelineno-3-161" href="#__codelineno-3-161"></a>            <span class="n">last_press_ms</span> <span class="o">=</span> <span class="n">now</span>
+</span><span id="__span-3-162"><a id="__codelineno-3-162" name="__codelineno-3-162" href="#__codelineno-3-162"></a>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;volume -&gt;&quot;</span><span class="p">,</span> <span class="n">volume</span><span class="p">)</span>
+</span><span id="__span-3-163"><a id="__codelineno-3-163" name="__codelineno-3-163" href="#__codelineno-3-163"></a>
+</span><span id="__span-3-164"><a id="__codelineno-3-164" name="__codelineno-3-164" href="#__codelineno-3-164"></a>        <span class="n">last</span> <span class="o">=</span> <span class="p">[</span><span class="n">button_mode</span><span class="o">.</span><span class="n">value</span><span class="p">(),</span> <span class="n">button_up</span><span class="o">.</span><span class="n">value</span><span class="p">(),</span> <span class="n">button_down</span><span class="o">.</span><span class="n">value</span><span class="p">()]</span>
+</span><span id="__span-3-165"><a id="__codelineno-3-165" name="__codelineno-3-165" href="#__codelineno-3-165"></a>
+</span><span id="__span-3-166"><a id="__codelineno-3-166" name="__codelineno-3-166" href="#__codelineno-3-166"></a>        <span class="n">RUNNERS</span><span class="p">[</span><span class="n">check</span><span class="p">]()</span>
+</span><span id="__span-3-167"><a id="__codelineno-3-167" name="__codelineno-3-167" href="#__codelineno-3-167"></a>
+</span><span id="__span-3-168"><a id="__codelineno-3-168" name="__codelineno-3-168" href="#__codelineno-3-168"></a>        <span class="c1"># The speaker check already takes ~120 ms playing its beep, and the</span>
+</span><span id="__span-3-169"><a id="__codelineno-3-169" name="__codelineno-3-169" href="#__codelineno-3-169"></a>        <span class="c1"># microphone check spends its time blocked in readinto(). The others</span>
+</span><span id="__span-3-170"><a id="__codelineno-3-170" name="__codelineno-3-170" href="#__codelineno-3-170"></a>        <span class="c1"># need a deliberate pause so the LED blinks at a visible rate.</span>
+</span><span id="__span-3-171"><a id="__codelineno-3-171" name="__codelineno-3-171" href="#__codelineno-3-171"></a>        <span class="k">if</span> <span class="n">check</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+</span><span id="__span-3-172"><a id="__codelineno-3-172" name="__codelineno-3-172" href="#__codelineno-3-172"></a>            <span class="n">time</span><span class="o">.</span><span class="n">sleep_ms</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+</span><span id="__span-3-173"><a id="__codelineno-3-173" name="__codelineno-3-173" href="#__codelineno-3-173"></a>
+</span><span id="__span-3-174"><a id="__codelineno-3-174" name="__codelineno-3-174" href="#__codelineno-3-174"></a><span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+</span><span id="__span-3-175"><a id="__codelineno-3-175" name="__codelineno-3-175" href="#__codelineno-3-175"></a>    <span class="n">close_peripherals</span><span class="p">()</span>
+</span><span id="__span-3-176"><a id="__codelineno-3-176" name="__codelineno-3-176" href="#__codelineno-3-176"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">BLACK</span><span class="p">)</span>
+</span><span id="__span-3-177"><a id="__codelineno-3-177" name="__codelineno-3-177" href="#__codelineno-3-177"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;Stopped.&quot;</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">WHITE</span><span class="p">)</span>
+</span><span id="__span-3-178"><a id="__codelineno-3-178" name="__codelineno-3-178" href="#__codelineno-3-178"></a>    <span class="n">oled</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</span><span id="__span-3-179"><a id="__codelineno-3-179" name="__codelineno-3-179" href="#__codelineno-3-179"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Stopped.&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="step-3-work-through-the-five-checks">Step 3 — Work through the five checks<a class="headerlink" href="#step-3-work-through-the-five-checks" title="Permanent link">&para;</a></h3>
+<p>Press <strong>MODE</strong> to advance. Each check is designed so that a wiring fault has an obvious symptom:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>What you should see</th>
+<th>If it fails</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. LED</td>
+<td>Onboard LED blinking</td>
+<td>The program isn't running at all</td>
+</tr>
+<tr>
+<td>2. Display</td>
+<td>An outline box, a filled box, a diagonal line</td>
+<td>SPI wiring</td>
+</tr>
+<tr>
+<td>3. Buttons</td>
+<td><code>U</code>/<code>D</code> appear while held; press count rises</td>
+<td>Button wiring or missing GND</td>
+</tr>
+<tr>
+<td>4. Microphone</td>
+<td>Peak % rises when you speak</td>
+<td>Mic wiring or L/R not grounded</td>
+</tr>
+<tr>
+<td>5. Speaker</td>
+<td>An 880 Hz beep; UP/DOWN change volume</td>
+<td>Amp wiring or power</td>
+</tr>
+</tbody>
+</table>
+<h3 id="step-4-confirm-the-microphone-actually-responds">Step 4 — Confirm the microphone actually responds<a class="headerlink" href="#step-4-confirm-the-microphone-actually-responds" title="Permanent link">&para;</a></h3>
+<p>The microphone check is the one worth lingering on. In a quiet room the peak should sit low.
+Speak, clap, or whistle and it should jump by more than 10×. A meter that reads a <em>constant</em>
+non-zero value no matter what you do usually means DC offset is not being removed — which is
+what <code>config.read_samples()</code> exists to handle.</p>
+<h2 id="expected-output">Expected Output<a class="headerlink" href="#expected-output" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Lab 1: Setup. MODE steps through checks, UP/DOWN adjust volume.
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Checks: LED, Display, Buttons, Microphone, Speaker
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>check -&gt; Display
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>check -&gt; Buttons
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>check -&gt; Microphone
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>check -&gt; Speaker
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>volume -&gt; 6
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>volume -&gt; 7
+</span></code></pre></div>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ValueError: invalid ws (must be sck+1)</code></td>
+<td>Clock pins not adjacent</td>
+<td>Each I²S clock pair must be <code>sck</code>, then <code>sck+1</code></td>
+</tr>
+<tr>
+<td><code>OSError</code> opening the second I²S</td>
+<td>Both I²S ids already in use</td>
+<td>Only two exist; <code>deinit()</code> one before opening another</td>
+</tr>
+<tr>
+<td>Microphone reads all zeros</td>
+<td>L/R floating, or SD miswired</td>
+<td>Tie L/R to GND; check SD → GPIO 12</td>
+</tr>
+<tr>
+<td>Microphone reads a big constant</td>
+<td>DC offset not removed</td>
+<td>Use <code>config.read_samples()</code>, not raw words</td>
+</tr>
+<tr>
+<td>Speaker silent</td>
+<td>Amp unpowered or SD pin held low</td>
+<td>VIN → VBUS; check GPIO 19 is driven high</td>
+</tr>
+<tr>
+<td>Speaker quiet and distorted</td>
+<td>Amp running off 3V3</td>
+<td>Move VIN to VBUS (5V)</td>
+</tr>
+<tr>
+<td>Speaker hisses constantly</td>
+<td>Amp clocked with no data</td>
+<td>Expected between beeps; <code>deinit()</code> when idle</td>
+</tr>
+<tr>
+<td>Buttons react on release</td>
+<td>Testing for 1 instead of 0</td>
+<td><code>PULL_UP</code> means a press is a falling edge</td>
+</tr>
+<tr>
+<td>Display blank</td>
+<td>SPI wiring, or RES not connected</td>
+<td>Verify all five display pins</td>
+</tr>
+</tbody>
+</table>
+<h2 id="challenges">Challenges<a class="headerlink" href="#challenges" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Break the rule on purpose.</strong> In <code>config.py</code>, change <code>SPK_WS_PIN</code> to 18 and run any program
+   that opens the speaker. Read the exact error. Now you'll recognize it instantly when it
+   happens for real.</li>
+<li><strong>Count the pins.</strong> The kit uses six GPIO pins for two I²S buses. Work out how many it would
+   use if sharing clocks were allowed, and how many wires that actually saves.</li>
+<li><strong>Measure the rate difference.</strong> <code>config.py</code> sets the mic to 12,800 Hz and playback to
+   16,000 Hz. If you had to share one clock, which would you change, and what would it cost?</li>
+<li><strong>Move a bus.</strong> Re-map the microphone to a different pair of adjacent pins, edit only
+   <code>config.py</code>, and confirm every lab still runs untouched.</li>
+</ol>
+<h2 id="check-your-understanding">Check Your Understanding<a class="headerlink" href="#check-your-understanding" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Which of the three I²S wires can never be shared between an input and an output device, and
+   why?</li>
+<li>What is a PIO sideset pin, and how does it produce the <code>ws = sck + 1</code> rule?</li>
+<li>How many <code>machine.I2S</code> instances does the RP2350 offer, and can one of them be RX and TX at
+   the same time?</li>
+<li>Give two reasons — one about clock rates, one about the speaker — why sharing a bus would be
+   a poor design here even if it were possible.</li>
+<li>Why does every lab import <code>config.py</code> instead of naming its own pins?</li>
+</ol>
+<hr />
+<p><strong>Next:</strong> Lab 2: FFT Test — can this chip do the DSP in real time? <em>(not yet written)</em></p>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://docs.micropython.org/en/latest/library/machine.I2S.html">MicroPython <code>machine.I2S</code> documentation</a></li>
+<li><a href="https://docs.micropython.org/en/latest/rp2/quickref.html">MicroPython quick reference for the RP2</a> — the <code>ws = sck + 1</code> rule</li>
+<li><a href="https://github.com/micropython/micropython/blob/master/ports/rp2/machine_i2s.c"><code>ports/rp2/machine_i2s.c</code></a> — the source quoted above</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../chapters/" class="md-footer__link md-footer__link--prev" aria-label="Previous: List of Chapters">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                List of Chapters
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../learning-graph/" class="md-footer__link md-footer__link--next" aria-label="Next: Introduction">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Introduction
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 Dan Mccreary. Licensed under <a href="license/">CC BY-NC-SA 4.0</a> for non-commercial use.
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy", "content.action.edit", "navigation.expand", "navigation.path", "navigation.prune", "navigation.indexes", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
