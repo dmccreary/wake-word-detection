@@ -32,7 +32,6 @@ import math
 import os
 import struct
 import time
-from machine import Pin
 
 import config
 
@@ -50,10 +49,11 @@ MEASURE_MS = 5000                        # how long each measurement runs
 FRAMES = int(MEASURE_MS / FRAME_MS)
 
 PROGRAM = "03-mic-calibration"
-# 1.5.0: buttons latched by IRQ -- a press during a measurement is no longer
-# lost. 1.4.0: two buttons + CLEAR mode, crash-safe JSON write, full mic-buffer
+# 1.6.0: buttons latched by IRQ *and* polling, and polled throughout every
+# measurement, so neither a blocked loop nor a dead interrupt can drop a press.
+# 1.5.0: buttons latched by IRQ. 1.4.0: two buttons + CLEAR mode, crash-safe JSON write, full mic-buffer
 # drain before each measurement, per-measurement timing and short-read detection.
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 
 RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
 
@@ -129,48 +129,10 @@ collect_stats = None    # timing/short-read stats from the last measurement
 
 mode = MODE_NOISE
 
-# Buttons are LATCHED BY INTERRUPT, not polled.
-#
-# A measurement blocks this program for about eight seconds -- 2.7 counting
-# down, five collecting, then printing and writing the JSON. A polling loop
-# sees none of that time, so a press that both starts and ends inside the
-# window never produces the 1 -> 0 transition the loop is watching for. The
-# press is not delayed, it is lost, and the button looks dead. Pressing MODE
-# the instant the progress bar fills is exactly when this happens.
-#
-# A falling-edge IRQ records the press the moment it occurs, whatever the main
-# program is busy with, and the loop picks it up when it gets back.
-_flags = {"mode": False, "select": False}
-_last_irq_ms = {"mode": 0, "select": 0}
-
-
-def _latch(name):
-    """Build an IRQ handler that records one press of `name`.
-
-    Deliberately tiny: an interrupt handler that allocates can fail at any
-    moment, so this only reads a clock and assigns to keys that already exist.
-    The timestamp check is the debounce -- mechanical contacts bounce for a few
-    milliseconds and would otherwise register one press several times.
-    """
-    def handler(pin):
-        now = time.ticks_ms()
-        if time.ticks_diff(now, _last_irq_ms[name]) < config.DEBOUNCE_MS:
-            return
-        _last_irq_ms[name] = now
-        _flags[name] = True
-    return handler
-
-
-button_mode.irq(trigger=Pin.IRQ_FALLING, handler=_latch("mode"))
-button_select.irq(trigger=Pin.IRQ_FALLING, handler=_latch("select"))
-
-
-def took(name):
-    """Consume one latched press, if any is waiting."""
-    if _flags[name]:
-        _flags[name] = False
-        return True
-    return False
+# Presses are latched by interrupt rather than polled: a measurement blocks
+# this program for about eight seconds, and a press that starts and ends inside
+# that window would never be seen at all. See config.latch_buttons().
+took, poll_buttons = config.latch_buttons(button_mode, button_select)
 
 
 def frame_rms():
@@ -212,6 +174,7 @@ def collect(label, seconds_note):
     lo_count = hi_count = None
     t_start = time.ticks_ms()
     for f in range(FRAMES):
+        poll_buttons()          # a press made mid-measurement must not be lost
         r, p, c = frame_rms()
         values.append(r)
         if lo_count is None or c < lo_count:
@@ -388,6 +351,7 @@ def drain_mic():
     real audio, so this costs a few tens of milliseconds.
     """
     for _ in range(config.MIC_BUFFER_BYTES // len(raw) + 4):
+        poll_buttons()
         mic.readinto(raw)
 
 
@@ -398,7 +362,9 @@ def countdown(line1, line2):
         oled.text(line2, 0, 24, config.WHITE)
         oled.text("starting in %d" % c, 0, 44, config.WHITE)
         oled.show()
-        time.sleep_ms(900)
+        for _ in range(9):      # 9 x 100 ms, so buttons stay responsive
+            poll_buttons()
+            time.sleep_ms(100)
     drain_mic()
 
 

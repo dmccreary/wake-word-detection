@@ -12,11 +12,12 @@
 # Everything here runs on a plain Pico 2. The Pico 2 W's radio is not touched
 # until the networking labs.
 
-CONFIG_VERSION = "2.0.0"        # 2.0.0: three buttons -> two (MODE 14, SELECT 15)
+CONFIG_VERSION = "2.2.0"        # 2.2.0: latch_buttons() polls as well as IRQs
 
 from machine import Pin, SPI, I2S
 import math
 import struct
+import time
 import ssd1306
 
 WIDTH = 128
@@ -140,6 +141,78 @@ def init_buttons():
     """The two buttons, in the order (mode, select)."""
     return (Pin(BUTTON_MODE_PIN, Pin.IN, Pin.PULL_UP),
             Pin(BUTTON_SELECT_PIN, Pin.IN, Pin.PULL_UP))
+
+
+def latch_buttons(mode_pin, select_pin):
+    """Record button presses reliably. Returns (took, poll).
+
+    Two mechanisms, deliberately, because neither is sufficient alone:
+
+      * An interrupt catches a press the instant it happens, even while the
+        program is blocked doing something else. But an interrupt that fails to
+        fire -- for any reason, on any one pin -- fails SILENTLY, and the
+        symptom is a button that does nothing while its neighbour works.
+
+      * Polling always works, because it just reads the pin. But it only sees a
+        press while the loop is actually looking, and these labs stop looking
+        for seconds at a time during a measurement.
+
+    Used together they cover each other. The interrupt catches presses during
+    blocking work; the polling catches presses the interrupt missed. A press is
+    latched by whichever notices first, and the debounce timestamp stops the
+    two from counting the same press twice.
+
+    Long-running code should call poll() periodically -- once per frame is
+    plenty -- so a press made during a measurement is not lost.
+    """
+    pins = {"mode": mode_pin, "select": select_pin}
+    flags = {"mode": False, "select": False}
+    last_ms = {"mode": 0, "select": 0}
+    level = {"mode": mode_pin.value(), "select": select_pin.value()}
+
+    def record(name):
+        # Shared by both mechanisms, so a press seen by the interrupt AND by
+        # the next poll still counts once. Mechanical contacts also bounce for
+        # a few milliseconds, which this same window absorbs.
+        now = time.ticks_ms()
+        if time.ticks_diff(now, last_ms[name]) < DEBOUNCE_MS:
+            return
+        last_ms[name] = now
+        flags[name] = True
+
+    def make(name):
+        def handler(pin):
+            record(name)            # kept allocation-free for IRQ context
+        return handler
+
+    for name in pins:
+        try:
+            pins[name].irq(trigger=Pin.IRQ_FALLING, handler=make(name))
+        except (AttributeError, ValueError, OSError, TypeError):
+            pass                    # no interrupt here; polling carries it
+
+    def poll():
+        """Edge-detect by reading the pins. Safe to call as often as you like.
+
+        Because `level` persists across calls, a press that began while the
+        program was busy is still caught, as long as the button is still down
+        when polling resumes.
+        """
+        for name in pins:
+            v = pins[name].value()
+            if level[name] == 1 and v == 0:
+                record(name)
+            level[name] = v
+
+    def took(name):
+        """Consume one latched press of `name`, if one is waiting."""
+        poll()
+        if flags[name]:
+            flags[name] = False
+            return True
+        return False
+
+    return took, poll
 
 
 def init_microphone(rate=SAMPLE_RATE):

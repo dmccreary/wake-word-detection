@@ -103,7 +103,7 @@ REFRACTORY_MS = 1500
 DISPLAY_EVERY = 8                        # redraw every 8 frames (~160 ms)
 
 PROGRAM = "04-wake-word-test"
-VERSION = "1.1.0"               # 1.1.0: two buttons, FORGET mode, wrapping threshold
+VERSION = "1.3.0"               # 1.3.0: buttons latched by IRQ + polling
 
 MODE_LISTEN = 0
 MODE_ENROLL = 1
@@ -158,12 +158,10 @@ banner_until_ms = 0
 worst_frame_ms = 0.0
 overruns = 0
 
-last = [button_mode.value(), button_select.value()]
-last_press_ms = time.ticks_ms()
-
-
-def pressed(pin, previous):
-    return previous == 1 and pin.value() == 0
+# Latched by interrupt, not polled: enroll() blocks while it records a
+# template, and a press made during it would never be seen as an edge at all.
+# See config.latch_buttons().
+took, poll_buttons = config.latch_buttons(button_mode, button_select)
 
 
 def feature_frame():
@@ -289,7 +287,9 @@ def enroll():
         oled.text("ENROLL", 40, 4, config.WHITE)
         oled.text("Say it in %d" % count, 16, 28, config.WHITE)
         oled.show()
-        time.sleep_ms(700)
+        for _ in range(7):      # keep buttons responsive through the countdown
+            poll_buttons()
+            time.sleep_ms(100)
 
     oled.fill(config.BLACK)
     oled.text("SPEAK NOW", 28, 24, config.WHITE)
@@ -297,7 +297,14 @@ def enroll():
 
     # Flush whatever accumulated in the mic's buffer during the countdown, so
     # enrollment starts with sound recorded from this instant forward.
-    mic.readinto(raw)
+    #
+    # The WHOLE buffer, not one frame. config.MIC_BUFFER_BYTES is 40000 bytes
+    # -- 781 ms of audio -- and nothing has read the mic during the 2.1 s
+    # countdown, so it is full. Discarding a single 20 ms frame would leave the
+    # click of the button you just pressed sitting at the front of the
+    # recording, baked into the template as if it were part of your phrase.
+    for _ in range(config.MIC_BUFFER_BYTES // len(raw) + 4):
+        mic.readinto(raw)
 
     # Nothing is drawn during the capture loop on purpose. An OLED update takes
     # several milliseconds over SPI, which would blow the 20 ms frame deadline
@@ -447,17 +454,14 @@ frame_count = 0
 try:
     while True:
         now = time.ticks_ms()
-        settled = time.ticks_diff(now, last_press_ms) > config.DEBOUNCE_MS
 
-        if settled and pressed(button_mode, last[0]):
+        if took("mode"):
             mode = (mode + 1) % len(MODE_NAMES)
-            last_press_ms = now
             frames_seen = 0                    # window is stale after a mode change
             print("mode ->", MODE_NAMES[mode])
             draw()
 
-        elif settled and pressed(button_select, last[1]):
-            last_press_ms = now
+        elif took("select"):
             if mode == MODE_ENROLL:
                 enroll()
                 frames_seen = 0
@@ -473,8 +477,6 @@ try:
                     threshold = THRESHOLD_MIN
                 print("threshold ->", threshold)
             draw()
-
-        last = [button_mode.value(), button_select.value()]
 
         # Neither ENROLL nor FORGET runs the detector -- both just wait for a
         # button, so there is no reason to spend a frame time on the FFT.

@@ -1,160 +1,163 @@
-# Button test -- find out which GPIOs your buttons are actually on.
+# Button test -- prove which detection mechanism actually works, per pin.
 #
-# Written because Lab 3 stopped responding to MODE. When a button produces no
-# console line at all, the program never saw a falling edge, and there are only
-# a few reasons for that:
+# v2.0.0 exists because of a specific failure: GPIO 15 (SELECT) responds, GPIO
+# 14 (MODE) does not, yet a plain polling scan says BOTH pins are wired
+# correctly. Those two facts together mean the problem is not the wiring and
+# not the button -- it is the mechanism used to notice the press.
 #
-#   * the button is wired to a different GPIO than config.py claims
-#   * only one of the two buttons is connected
-#   * both buttons are wired to the same pin
-#   * the other leg goes somewhere other than GND, so a press changes nothing
-#   * the pin is shorted to GND, so it reads pressed forever
+# So this watches each pin BOTH WAYS AT ONCE and counts them separately:
 #
-# Guessing between those wastes an evening. This tells you.
+#   IRQ  -- a falling-edge interrupt. Fires whenever the press physically
+#           happens, even while the program is busy elsewhere.
+#   POLL -- reading pin.value() in a loop and looking for 1 -> 0. Only sees a
+#           press if the loop happens to be looking at the time.
 #
-# It watches EVERY free GPIO, not just the two config.py names, so if your
-# button is on 13 or 20 it will say so instead of reporting "no press". Pins
-# already owned by the display, microphone, speaker, and LED are excluded --
-# reconfiguring those as inputs mid-run would break the display this program
-# needs in order to talk to you.
+# Four outcomes, each with a different fix:
 #
-# Press each button in turn and read the console.
+#   both counts rise on both pins  -> hardware and IRQs are fine, the bug is in
+#                                     whatever the lab does between polls
+#   IRQ 0 but POLL rises on a pin  -> that pin's interrupt is not being
+#                                     delivered; the labs must not rely on it
+#   POLL 0 but IRQ rises           -> the press is shorter than the poll
+#                                     interval; polling alone will always miss it
+#   both 0 on a pin                -> wiring after all
+#
+# Press MODE several times, then SELECT several times, then stop.
 
 import time
+from machine import Pin
 
 import config
 
 PROGRAM = "02-button-test"
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 
-# Everything config.py has already assigned to something that is not a button.
-# Watching these would at best be noise and at worst break the display.
-RESERVED = (
-    config.SCL_PIN, config.SDA_PIN, config.RES_PIN, config.DC_PIN,
-    config.CS_PIN,
-    config.MIC_SCK_PIN, config.MIC_WS_PIN, config.MIC_SD_PIN,
-    config.SPK_BCK_PIN, config.SPK_WS_PIN, config.SPK_SD_PIN,
-)
-
-# GP0..GP22 are the pins broken out on a Pico 2 that can take a button. 23-25
-# and 26-29 are either internal or analog-capable pins not on the kit's header.
-CANDIDATES = [p for p in range(23)
-              if p not in RESERVED and p != config.SPK_ENABLE_PIN]
-
-EXPECTED = {config.BUTTON_MODE_PIN: "MODE", config.BUTTON_SELECT_PIN: "SELECT"}
-
+button_mode, button_select = config.init_buttons()
 oled = config.init_display()
 
-# Every candidate gets its own pull-up. An unconnected input with a pull-up
-# reads 1 forever; a button to GND reads 0 while held.
-from machine import Pin                                    # noqa: E402
-watch = {}
-for p in CANDIDATES:
-    try:
-        watch[p] = Pin(p, Pin.IN, Pin.PULL_UP)
-    except (ValueError, TypeError):
-        pass                                # not a usable GPIO on this board
+PINS = {"MODE": button_mode, "SELECT": button_select}
+NUM = {"MODE": config.BUTTON_MODE_PIN, "SELECT": config.BUTTON_SELECT_PIN}
+
+irq_count = {"MODE": 0, "SELECT": 0}
+poll_count = {"MODE": 0, "SELECT": 0}
+last_level = {"MODE": 1, "SELECT": 1}
+irq_error = {}
+
+
+def make_handler(name):
+    """One IRQ handler per button. Counting only -- no allocation."""
+    def handler(pin):
+        irq_count[name] += 1
+    return handler
+
 
 print("%s v%s  (config v%s)" % (PROGRAM, VERSION, config.CONFIG_VERSION))
-print("=" * 58)
-print("Button test")
-print("=" * 58)
-print("config.py expects:  MODE = GPIO %d,  SELECT = GPIO %d"
-      % (config.BUTTON_MODE_PIN, config.BUTTON_SELECT_PIN))
-print("watching %d pins: %s" % (len(watch), ", ".join(str(p) for p in sorted(watch))))
+print("=" * 60)
+print("Button test -- IRQ vs polling, measured separately")
+print("=" * 60)
+
+for name in ("MODE", "SELECT"):
+    try:
+        PINS[name].irq(trigger=Pin.IRQ_FALLING, handler=make_handler(name))
+        print("  %-6s GPIO %-2d  IRQ registered" % (name, NUM[name]))
+    except Exception as e:            # noqa: BLE001 -- report anything at all
+        irq_error[name] = repr(e)
+        print("  %-6s GPIO %-2d  IRQ REGISTRATION FAILED: %r"
+              % (name, NUM[name], e))
+
 print()
-print("Press each button a few times. Every press prints a line naming the")
-print("GPIO it arrived on. Ctrl-C (or STOP) when you are done for a summary.")
+print("Resting levels (1 = not pressed): %s"
+      % ", ".join("%s=%d" % (n, PINS[n].value()) for n in PINS))
+print()
+print("Press MODE a few times, then SELECT a few times.")
+print("Each line shows which mechanism noticed it. Ctrl-C for the summary.")
 print()
 
-# A pin already low at startup is not a press -- it is a wiring fault, and it
-# would otherwise be reported as one press and then never again.
-stuck = [p for p in sorted(watch) if watch[p].value() == 0]
-if stuck:
-    print("!! These pins read LOW with nothing pressed: %s"
-          % ", ".join(str(p) for p in stuck))
-    print("   That is a short to GND, not a button. A pin held low can never")
-    print("   produce the 1 -> 0 edge every lab looks for.")
-    print()
-
-counts = {p: 0 for p in watch}
-last = {p: watch[p].value() for p in watch}
-last_ms = {p: 0 for p in watch}
-seen_any = False
+reported = {"MODE": (0, 0), "SELECT": (0, 0)}
 
 
-def draw(msg1, msg2):
+def draw():
     oled.fill(config.BLACK)
-    oled.text("Button test", 0, 0, config.WHITE)
+    oled.text("Button test 2.0", 0, 0, config.WHITE)
     oled.hline(0, 10, config.WIDTH, config.WHITE)
-    oled.text(msg1, 0, 20, config.WHITE)
-    oled.text(msg2, 0, 32, config.WHITE)
-    oled.text("MODE %d SEL %d" % (config.BUTTON_MODE_PIN,
-                                  config.BUTTON_SELECT_PIN),
-              0, 52, config.WHITE)
+    oled.text("MODE i%d p%d" % (irq_count["MODE"], poll_count["MODE"]),
+              0, 20, config.WHITE)
+    oled.text("SEL  i%d p%d" % (irq_count["SELECT"], poll_count["SELECT"]),
+              0, 32, config.WHITE)
+    oled.text("i=irq p=poll", 0, 52, config.WHITE)
     oled.show()
 
 
-draw("Press a button", "")
+draw()
+last_draw = time.ticks_ms()
+last_edge_ms = {"MODE": 0, "SELECT": 0}
 
 try:
     while True:
         now = time.ticks_ms()
-        for p in watch:
-            v = watch[p].value()
-            if last[p] == 1 and v == 0:
-                if time.ticks_diff(now, last_ms[p]) > config.DEBOUNCE_MS:
-                    counts[p] += 1
-                    last_ms[p] = now
-                    seen_any = True
-                    role = EXPECTED.get(p)
-                    if role:
-                        print("GPIO %-2d pressed  <- this is %s, as configured"
-                              % (p, role))
-                        draw("GPIO %d = %s" % (p, role), "count %d" % counts[p])
-                    else:
-                        print("GPIO %-2d pressed  <- NOT in config.py!" % p)
-                        draw("GPIO %d" % p, "not configured!")
-            last[p] = v
+
+        for name in ("MODE", "SELECT"):
+            v = PINS[name].value()
+            if last_level[name] == 1 and v == 0:
+                if time.ticks_diff(now, last_edge_ms[name]) > config.DEBOUNCE_MS:
+                    poll_count[name] += 1
+                    last_edge_ms[name] = now
+            last_level[name] = v
+
+            # Report whenever either counter for this button moves, naming
+            # which mechanism saw it. A press caught by only one is the whole
+            # point of this program.
+            if (irq_count[name], poll_count[name]) != reported[name]:
+                di = irq_count[name] - reported[name][0]
+                dp = poll_count[name] - reported[name][1]
+                if di and dp:
+                    how = "IRQ + POLL (both)"
+                elif di:
+                    how = "IRQ only  <- polling missed it"
+                else:
+                    how = "POLL only <- the interrupt did NOT fire"
+                print("%-6s GPIO %-2d  %s   (irq=%d poll=%d)"
+                      % (name, NUM[name], how, irq_count[name], poll_count[name]))
+                reported[name] = (irq_count[name], poll_count[name])
+                draw()
+
+        if time.ticks_diff(now, last_draw) > 500:
+            last_draw = now
+            draw()
         time.sleep_ms(5)
 
 except KeyboardInterrupt:
     print()
-    print("=" * 58)
+    print("=" * 60)
     print("SUMMARY")
-    print("=" * 58)
-    if not seen_any:
-        print("No presses detected on ANY pin.")
-        print()
-        print("Every watched pin stayed at 1 the whole time, so nothing ever")
-        print("pulled one to GND. Check that each button's other leg actually")
-        print("goes to a GND pin -- a button wired between two GPIOs, or to")
-        print("3V3, cannot produce the falling edge the labs look for.")
-    else:
-        pressed_pins = [p for p in sorted(counts) if counts[p]]
-        for p in pressed_pins:
-            role = EXPECTED.get(p, "not in config.py")
-            print("  GPIO %-2d  %3d press(es)   %s" % (p, counts[p], role))
-        print()
-        for pin, role in sorted(EXPECTED.items()):
-            if counts.get(pin, 0) == 0:
-                print("!! %s (GPIO %d) never registered a press." % (role, pin))
-        unexpected = [p for p in pressed_pins if p not in EXPECTED]
-        if unexpected:
-            print()
-            print("Buttons responded on %s, which config.py does not use."
-                  % ", ".join("GPIO %d" % p for p in unexpected))
-            print("Either re-wire to GPIO %d and %d, or edit config.py:"
-                  % (config.BUTTON_MODE_PIN, config.BUTTON_SELECT_PIN))
-            print("    BUTTON_MODE_PIN = %d" % unexpected[0])
-            if len(unexpected) > 1:
-                print("    BUTTON_SELECT_PIN = %d" % unexpected[1])
-            print("then re-run ./upload-code.sh.")
-        elif len(pressed_pins) == 1 and len(EXPECTED) == 2:
-            print()
-            print("Only one pin ever responded. If you pressed both buttons,")
-            print("they are wired to the same GPIO -- which is why one of them")
-            print("appears to do nothing.")
+    print("=" * 60)
+    print("  %-6s %-6s %8s %8s" % ("button", "gpio", "IRQ", "POLL"))
+    for name in ("MODE", "SELECT"):
+        print("  %-6s %-6d %8d %8d"
+              % (name, NUM[name], irq_count[name], poll_count[name]))
+    print()
+
+    for name in ("MODE", "SELECT"):
+        i, p = irq_count[name], poll_count[name]
+        if name in irq_error:
+            print("%s: IRQ could not even be registered (%s)."
+                  % (name, irq_error[name]))
+        elif p and not i:
+            print("%s (GPIO %d): the button works, but its INTERRUPT never"
+                  % (name, NUM[name]))
+            print("   fired. Any lab that relies on an IRQ for this pin will")
+            print("   appear dead. The labs need to poll this pin instead.")
+        elif i and not p:
+            print("%s (GPIO %d): interrupt fires but polling never caught it"
+                  % (name, NUM[name]))
+            print("   -- presses are shorter than the poll interval.")
+        elif not i and not p:
+            print("%s (GPIO %d): no presses detected at all. Either it was not"
+                  % (name, NUM[name]))
+            print("   pressed, or its other leg does not reach GND.")
+        else:
+            print("%s (GPIO %d): both mechanisms work." % (name, NUM[name]))
+
     oled.fill(config.BLACK)
     oled.text("Stopped.", 30, 28, config.WHITE)
     oled.show()

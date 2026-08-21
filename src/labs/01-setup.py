@@ -18,7 +18,7 @@ import time
 import config
 
 PROGRAM = "01-setup"
-VERSION = "1.1.0"               # 1.1.0: two buttons, SELECT wraps the volume
+VERSION = "1.3.0"               # 1.3.0: buttons latched by IRQ + polling
 
 CHECKS = ["LED", "Display", "Buttons", "Microphone", "Speaker"]
 
@@ -38,13 +38,10 @@ mic_peak = 0
 mic = None
 speaker = None
 
-last = [button_mode.value(), button_select.value()]
-last_press_ms = time.ticks_ms()
-
-
-def pressed(pin, previous):
-    """True on the falling edge -- the moment the button goes 1 -> 0."""
-    return previous == 1 and pin.value() == 0
+# Latched by interrupt, not polled: the speaker check spends ~120 ms inside a
+# beep and the microphone check blocks in readinto(), and a press made during
+# either would never be seen by a polling loop. See config.latch_buttons().
+took, poll_buttons = config.latch_buttons(button_mode, button_select)
 
 
 def close_peripherals():
@@ -148,24 +145,17 @@ draw("Starting...")
 
 try:
     while True:
-        now = time.ticks_ms()
-        settled = time.ticks_diff(now, last_press_ms) > config.DEBOUNCE_MS
-
-        if settled and pressed(button_mode, last[0]):
+        if took("mode"):
             close_peripherals()
             check = (check + 1) % len(CHECKS)
-            last_press_ms = now
             print("check ->", CHECKS[check])
 
-        if settled and pressed(button_select, last[1]):
+        if took("select"):
             press_count += 1
             # Wraps instead of clamping: with one button there is no way back
             # down, so the top of the range has to lead round to the bottom.
             volume = 0 if volume >= config.VOLUME_STEPS else volume + 1
-            last_press_ms = now
             print("volume ->", volume)
-
-        last = [button_mode.value(), button_select.value()]
 
         RUNNERS[check]()
 
