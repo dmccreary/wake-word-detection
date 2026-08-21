@@ -28,6 +28,41 @@ Along the way five genuine secondary bugs were found and fixed, and two of my ow
 
 ---
 
+## 1a. Elapsed time
+
+Derived from git commit times and file modification times, not from conversation
+timestamps — so this is wall-clock elapsed time for the whole working session,
+including thinking, physical button pressing, and the several minutes lost to
+unplugging a hard-faulted board. It is not "time spent typing".
+
+| Time | Milestone | Gap |
+|---|---|---|
+| 10:11:28 | `ef5c9fc` "new labs" — earliest activity today | — |
+| 11:00:40 | `4d42b94` upload script, JSON output, `--clean` | +49 min |
+| 11:26:18 | `497cf62` two-button conversion | +26 min |
+| 13:24:04 | `f023d56` button test written, "found another bug" | **+118 min** |
+| 14:13:42 | `04db256` isolating the hang after the flash write | +50 min |
+| 14:56:38 | `e74d795` fixed by closing the mic before writing | +43 min |
+| 14:57:39 | session log written | +1 min |
+
+**Total elapsed: 4 h 46 min.**
+
+**Time on the MODE-button bug (11:26 → 14:14): 2 h 47 min — 58% of the entire
+session.** Of that, roughly the first two hours went to fixing button handling
+that was never broken; the actual root cause was found and fixed in the last
+45 minutes, once the input was scripted rather than pressed.
+
+The single largest gap in the table, +118 minutes, is the stretch covering
+rounds 1–4 of the hypothesis table in §7: IRQ latching, dual IRQ-plus-polling,
+`02-button-test.py`, and `00-button-probe.py`. Every one of those changes was
+correct in isolation and none of them addressed the failure.
+
+For calibration: the productive non-bug work — upload script repair, JSON
+output, `--clean`, port discovery, the full two-button conversion across four
+labs and two documents — took **75 minutes** in total.
+
+---
+
 ## 2. Timeline
 
 ### Phase 1 — Upload script repair
