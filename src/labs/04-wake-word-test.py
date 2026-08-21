@@ -48,27 +48,43 @@ BAND_LO_HZ = 150
 BAND_HI_HZ = 6000
 
 # The reference wake phrase for this course is "Hey Pico" (see the lab writeup
-# for why). Said deliberately it runs 800-900 ms, so the window has to be at
-# least that long or enrollment clips the tail of "-co".
+# for why). The original 800 ms here was an estimate -- "said deliberately it
+# runs 800-900 ms" -- and the first hardware session showed the phrase is
+# clearly shorter than that at a natural pace. 640 ms is a conservative trim,
+# not a fitted value: see the note in enroll() for why the fill percentage
+# that first suggested it could not be trusted, and re-measure with the
+# repaired metric before tightening this further.
 #
-# This is not free. Scoring costs TEMPLATE_FRAMES * BANDS float multiply-adds
-# EVERY frame, and a MicroPython float multiply is ~1,097 cycles. At 40 frames
-# that is 480 multiply-adds, roughly 4.4 ms of the 20 ms budget. Raising this
-# further is the first thing to suspect if the overrun counter starts moving.
-TEMPLATE_FRAMES = 40                     # 800 ms -- fits a 3-syllable phrase
+# Padding is not harmless. Every frame is mean-subtracted and L2-normalized, so
+# a SILENT frame still emits a unit vector -- one pointing along whatever the
+# room's noise spectrum happens to be. Steady noise (a furnace fan, in the room
+# this was measured in) is highly repeatable, so those padding frames match
+# each other almost perfectly and inflate the score with agreement about the
+# ROOM rather than about the phrase. Sizing the window to the phrase is what
+# stops the detector from grading itself on silence.
+#
+# This is not free -- but here the change runs the good way. Scoring costs
+# TEMPLATE_FRAMES * BANDS float multiply-adds EVERY frame, and a MicroPython
+# float multiply is ~1,097 cycles. At 32 frames that is 384 multiply-adds,
+# roughly 3.5 ms of the 20 ms budget, down from 4.4 ms at 40. Raising this is
+# still the first thing to suspect if the overrun counter starts moving.
+TEMPLATE_FRAMES = 32                     # 640 ms -- fits a 3-syllable phrase
 
 # A starting point, not a right answer.
 #
 # This number was chosen from a measurement, not taste. A fixed-length template
 # has no time warping, so the score falls off sharply when the phrase is spoken
 # at a different pace than it was enrolled at. Measured on synthetic speech,
-# against an enrollment that filled the whole 800 ms window:
+# against an enrollment that filled the whole window. The relationship is one
+# of FILL FRACTION, so it survived the window shrinking from 800 ms to 640 ms
+# -- only the millisecond column below was rescaled, the scores are as
+# measured:
 #
-#     phrase fills 100% of window (800 ms) -> 0.97
-#                   95%           (760 ms) -> 0.84
-#                   90%           (720 ms) -> 0.77
-#                   85%           (680 ms) -> 0.66
-#                   80%           (640 ms) -> 0.49
+#     phrase fills 100% of window (640 ms) -> 0.97
+#                   95%           (608 ms) -> 0.84
+#                   90%           (576 ms) -> 0.77
+#                   85%           (544 ms) -> 0.66
+#                   80%           (512 ms) -> 0.49
 #     a phrase using the same sounds in a different order -> 0.52
 #
 # So the threshold has to sit above ~0.52 to reject an impostor, but low enough
@@ -103,7 +119,7 @@ REFRACTORY_MS = 1500
 DISPLAY_EVERY = 8                        # redraw every 8 frames (~160 ms)
 
 PROGRAM = "04-wake-word-test"
-VERSION = "1.3.0"               # 1.3.0: buttons latched by IRQ + polling
+VERSION = "1.4.0"               # 1.4.0: speaker preallocated; 32-frame window
 
 MODE_LISTEN = 0
 MODE_ENROLL = 1
@@ -114,6 +130,37 @@ oled = config.init_display()
 button_mode, button_select = config.init_buttons()
 mic = config.init_microphone()
 led = config.init_led()
+
+# The speaker is opened ONCE, here, and never from inside the detect path.
+#
+# init_speaker() asks for a 20,000-byte I2S buffer. Taking that at detection
+# time fails with MemoryError even though the heap has ~475 KB free, which
+# looks impossible until you count allocations: feature_frame() slices `raw`
+# and unpacks a 256-element tuple on every one of the 50 frames per second, so
+# after a short listen the heap is a minefield of small holes and no
+# contiguous 20 KB survives anywhere in it. Claiming the buffer at startup,
+# while the heap is still unfragmented, sidesteps the whole problem. This is
+# the same lesson as the precomputed window and band edges below, learned the
+# expensive way.
+#
+# The mic is on I2S 0 and the speaker on I2S 1 -- separate peripherals -- so
+# both can stay open at once. A note for anyone extending this lab: if you add
+# code that writes a FILE here (saving a template, say), both must be
+# deinit()ed first and reopened after. Writing flash with any I2S peripheral
+# live hard-faults the chip, with no traceback and no recovery short of
+# pulling the USB cable.
+speaker = config.init_speaker()
+
+# The amplifier's shutdown pin, which this lab previously never touched -- so
+# even before the MemoryError, a detection would very likely have beeped into
+# a disabled amp and made no sound at all. The returned Pin is bound to a name
+# rather than discarded on purpose: keeping a reference is the habit that stops
+# an enable line from being a mystery later.
+amp = config.init_amp_enable()
+
+# The beep waveform is built once too, for the same reason -- play_tone() would
+# otherwise allocate a fresh ~3.8 KB buffer on every detection.
+beep = config.tone_buffer(1320, 120)
 
 fft = fft_asm.FFT(N)
 re, im = fft.make_buffers()
@@ -309,22 +356,47 @@ def enroll():
     # Nothing is drawn during the capture loop on purpose. An OLED update takes
     # several milliseconds over SPI, which would blow the 20 ms frame deadline
     # and drop audio -- corrupting the very template we are recording.
-    speech_frames = 0
+    frame_level = [0.0] * TEMPLATE_FRAMES
     for f in range(TEMPLATE_FRAMES):
         vec, rms = feature_frame()
-        if rms > SPEECH_FLOOR:
-            speech_frames += 1
+        frame_level[f] = rms
         for b in range(BANDS):
             template_sum[f][b] += vec[b]
 
     enrollments += 1
     rebuild_template()
 
-    # How much of the window did the phrase actually occupy? This is the single
-    # most useful number to show a student, because a fixed-length template has
-    # no time warping: a phrase that fills 80% of the window scores about 0.49
-    # against one enrolled at 100%, which is below the impostor score. Pace
-    # consistency is not a nicety here, it is the whole ballgame.
+    # How many frames did the phrase actually occupy? Measured against THIS
+    # recording's own peak, not against SPEECH_FLOOR.
+    #
+    # Gating on SPEECH_FLOOR here was a real bug, and one that concealed
+    # itself: if the floor sits below the room's noise, silence counts as
+    # speech and every phrase reads longer than it is. That is not a
+    # hypothetical. The first hardware run used the uncalibrated default of
+    # 6711, while the same room's MEDIAN noise frame measured 7221 -- so more
+    # than half of all silence scored as speech, fill reported 72-82%, and the
+    # phrase looked like it nearly filled an 800 ms window when it did not
+    # come close. A peak-relative gate cannot make that particular mistake,
+    # because it has no absolute number in it to get wrong.
+    #
+    # -6 dB below peak is deliberately generous; a tighter gate would clip the
+    # quiet consonants at the edges of the phrase. The honest caveat is that
+    # this still needs the phrase to clear the room noise by more than 6 dB.
+    # If fill reads high when you say nothing at all, that is the room being
+    # measured, not your pace -- and the fix is a quieter room or the
+    # band-limited energy gate, not a different number here.
+    peak = max(frame_level)
+    gate = peak * 0.5
+    speech_frames = 0
+    for f in range(TEMPLATE_FRAMES):
+        if frame_level[f] > gate:
+            speech_frames += 1
+
+    # This is the single most useful number to show a student, because a
+    # fixed-length template has no time warping: a phrase that fills 80% of the
+    # window scores about 0.49 against one enrolled at 100%, which is below the
+    # impostor score. Pace consistency is not a nicety here, it is the whole
+    # ballgame.
     fill = speech_frames * 100 // TEMPLATE_FRAMES
 
     oled.fill(config.BLACK)
@@ -342,7 +414,8 @@ def enroll():
     print("enrolled sample %d  (window fill %d%%)" % (enrollments, fill))
     if fill < 85:
         print("  -> phrase is short for this window; say it more deliberately")
-        print("     or lower TEMPLATE_FRAMES to match your natural pace")
+        print("     or lower TEMPLATE_FRAMES (now %d = %d ms) to match your pace"
+              % (TEMPLATE_FRAMES, TEMPLATE_FRAMES * FRAME_MS))
 
 
 def forget():
@@ -364,10 +437,12 @@ def announce():
     crudest possible form of the self-trigger problem -- and mute-and-resume is
     the crudest possible fix. A real assistant playing a full spoken sentence
     needs considerably more than this.
+
+    The speaker and the waveform are both allocated at startup, not here --
+    see the note at the top. Nothing in this function allocates, which is the
+    only reason it can be called from the detect path at all.
     """
-    speaker = config.init_speaker()
-    config.play_tone(speaker, 1320, 120, config.DEFAULT_VOLUME)
-    speaker.deinit()
+    speaker.write(beep)
     mic.readinto(raw)
 
 
@@ -525,6 +600,7 @@ try:
 
 except KeyboardInterrupt:
     mic.deinit()
+    speaker.deinit()
     oled.fill(config.BLACK)
     oled.text("Stopped.", 30, 20, config.WHITE)
     oled.text("hits: %d" % detections, 30, 36, config.WHITE)

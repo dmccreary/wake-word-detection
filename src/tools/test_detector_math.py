@@ -27,7 +27,7 @@ import types
 
 import os
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, SRC + "/lib")
+sys.path.insert(0, SRC + "/labs/lib")
 
 FULL_SCALE = 8388608
 SAMPLE_RATE = 12800
@@ -107,13 +107,14 @@ fft_asm.FFT = _FFT
 sys.modules["fft_asm"] = fft_asm
 
 sys.path.insert(0, SRC)
-sys.path.insert(0, SRC + "/labs/04-wake-word-test")
+sys.path.insert(0, SRC + "/labs")
+sys.path.insert(0, SRC + "/labs/lib")
 
 # ---- import the real lab ---------------------------------------------------
 import importlib.util
 
 spec = importlib.util.spec_from_file_location(
-    "lab3", SRC + "/labs/04-wake-word-test/04-wake-word-test.py")
+    "lab3", SRC + "/labs/04-wake-word-test.py")
 lab3 = importlib.util.module_from_spec(spec)
 
 # The lab ends in an infinite loop; stop it the way a user would.
