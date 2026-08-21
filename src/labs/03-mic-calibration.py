@@ -22,6 +22,8 @@
 #
 # Nothing here is real-time critical, so unlike Lab 4 this lab draws freely.
 
+import gc
+import json
 import math
 import struct
 import time
@@ -41,12 +43,41 @@ FRAME_MS = N / config.SAMPLE_RATE * 1000
 MEASURE_MS = 5000                        # how long each measurement runs
 FRAMES = int(MEASURE_MS / FRAME_MS)
 
+RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
+
+# EDIT THIS LINE before you measure. A noise floor without its room is not a
+# result, and by the time this JSON reaches a laptop nobody remembers which
+# room it came from or how far away you were sitting.
+ROOM_NOTE = "describe the room and your distance from the mic"
+
 BANDS = 12                               # must match Lab 4
 BAND_LO_HZ = 150
 BAND_HI_HZ = 6000
 
 MODES = ["NOISE", "SPEECH", "CLIP", "SPECTRUM", "RESULT"]
 MODE_NOISE, MODE_SPEECH, MODE_CLIP, MODE_SPECTRUM, MODE_RESULT = range(5)
+
+# Reprinted every time MODE advances, so the console always says what the
+# button you are about to press is going to do. One tuple of lines per mode.
+MODE_HELP = (
+    ("Leave the room exactly as you will use it. Stay silent, press UP.",),
+    ("Press UP, then say 'Hey Pico' over and over -- at the distance you",
+     "will really use -- until the progress bar fills.",
+     "REQUIRED: without this there is nothing to recommend."),
+    ("Press UP, then speak as LOUDLY as you ever would.",
+     "Headroom check only; this does not feed the recommendation."),
+    ("Stay silent again and press UP.",
+     "Shows which frequency bands the room's noise actually occupies."),
+    ("Press UP to reprint the summary and rewrite " + RESULTS_FILE + ".",),
+)
+
+
+def announce(m):
+    """Print the current mode and what to do in it."""
+    print()
+    print(">>> Mode %d/%d: %s" % (m + 1, len(MODES), MODES[m]))
+    for line in MODE_HELP[m]:
+        print("    " + line)
 
 oled = config.init_display()
 button_mode, button_up, button_down = config.init_buttons()
@@ -73,8 +104,10 @@ for b in range(BANDS):
 # Results, filled in as each measurement completes. None means "not yet run".
 noise_rms = None        # median frame RMS with the room quiet
 noise_max = None        # loudest frame seen while "quiet" -- the real enemy
+noise_pct = None        # full frame-RMS distribution of the quiet room
 speech_rms = None       # median frame RMS while talking
 speech_peak = None      # loudest frame while talking
+speech_pct = None       # full frame-RMS distribution while talking
 clip_peak = None        # largest raw sample magnitude
 noise_bands = None      # per-band noise energy
 
@@ -140,22 +173,46 @@ def median(sorted_values):
     return sorted_values[len(sorted_values) // 2]
 
 
+def percentiles(sorted_values):
+    """The whole frame-RMS distribution, not just the median and the max.
+
+    The gap between p50 and p99 is what decides whether a workable gate exists
+    at all. A room whose loudest "quiet" frames sit 9 dB above its median needs
+    a far higher SPEECH_FLOOR than the median alone would suggest, and a single
+    max value cannot tell you whether that was one door slam or a steady rattle
+    in every eighth frame.
+    """
+    n = len(sorted_values)
+    out = {}
+    for p in (10, 25, 50, 75, 90, 99):
+        out["p%d" % p] = sorted_values[min(n - 1, int(n * p / 100))]
+    out["max"] = sorted_values[-1]
+    out["frames"] = n
+    return out
+
+
 def measure_noise():
-    global noise_rms, noise_max
+    global noise_rms, noise_max, noise_pct
     countdown("Be QUIET", "measuring room")
     vals, _ = collect("NOISE", "stay quiet...")
     noise_rms = median(vals)
     noise_max = vals[-1]
+    noise_pct = percentiles(vals)
     print("noise floor : median %8.0f  (%.1f dBFS, ~%.0f dB SPL)"
           % (noise_rms, config.dbfs(noise_rms), config.spl(noise_rms)))
     print("              worst  %8.0f  (%.1f dBFS)  <- the number that matters"
           % (noise_max, config.dbfs(noise_max)))
+    print("              spread p50->p99 %.1f dB, p50->max %.1f dB"
+          % (config.dbfs(noise_pct["p99"]) - config.dbfs(noise_rms),
+             config.dbfs(noise_max) - config.dbfs(noise_rms)))
+    save_results()
 
 
 def measure_speech():
-    global speech_rms, speech_peak
+    global speech_rms, speech_peak, speech_pct
     countdown("Say 'Hey Pico'", "over and over")
     vals, _ = collect("SPEECH", "keep talking...")
+    speech_pct = percentiles(vals)
     # The top decile is what a wake word actually looks like: most frames of
     # any utterance are the quiet parts between syllables.
     speech_peak = vals[-1]
@@ -164,6 +221,7 @@ def measure_speech():
           % (speech_rms, config.dbfs(speech_rms), config.spl(speech_rms)))
     print("              peak       %8.0f  (%.1f dBFS)"
           % (speech_peak, config.dbfs(speech_peak)))
+    save_results()
 
 
 def measure_clip():
@@ -174,6 +232,7 @@ def measure_clip():
     print("headroom    : peak sample %d = %.1f%% of full scale" % (clip_peak, pct))
     if pct > 90:
         print("              CLIPPING -- back off or the spectrum is garbage")
+    save_results()
 
 
 def measure_spectrum():
@@ -227,6 +286,7 @@ def measure_spectrum():
         print("  -> low-frequency room rumble (HVAC, traffic).")
         print("     Consider raising BAND_LO_HZ in Lab 4 above %d Hz."
               % int(edges[worst + 1] * bin_hz))
+    save_results()
 
 
 def countdown(line1, line2):
@@ -256,6 +316,119 @@ def recommend():
     if floor > speech_rms * 0.7:
         floor = speech_rms * 0.7        # never gate out your own voice
     return floor
+
+
+def clamp_reason():
+    """Which of recommend()'s three rules actually decided the floor.
+
+    Worth recording, because the three mean very different things. The
+    geometric mean is the healthy case. "4x-worst-noise-frame" means the
+    room's loud outliers, not its average, set your gate. And
+    "capped-at-0.7x-speech" means the outliers wanted a gate louder than your
+    own voice -- the recommendation is a compromise, not a solution, and the
+    room or the mic distance is what needs fixing.
+    """
+    if noise_rms is None or speech_rms is None:
+        return None
+    floor = math.sqrt(noise_rms * speech_rms)
+    why = "geometric-mean"
+    if noise_max is not None and floor < noise_max * 4:
+        floor = noise_max * 4
+        why = "4x-worst-noise-frame"
+    if floor > speech_rms * 0.7:
+        why = "capped-at-0.7x-speech"
+    return why
+
+
+def save_results():
+    """Write every measurement taken so far to RESULTS_FILE on the Pico.
+
+    Called after each measurement rather than only at the end, so a session
+    that gets interrupted -- or a Pico that gets unplugged -- still leaves
+    usable data behind. Fetch it with:
+
+        mpremote connect <port> cp :calibration.json .
+
+    Levels are stored as raw frame RMS values, with dBFS alongside, because
+    the raw numbers are what config.py's SPEECH_FLOOR is expressed in and
+    dBFS is what a human can reason about.
+    """
+    data = {
+        "lab": 3,
+        "schema": 1,
+        "room_note": ROOM_NOTE,
+        "uptime_ms": time.ticks_ms(),
+        "config": {
+            "sample_rate": config.SAMPLE_RATE,
+            "fft_n": N,
+            "frame_ms": FRAME_MS,
+            "measure_ms": MEASURE_MS,
+            "full_scale": config.FULL_SCALE,
+            "spl_offset": config.SPL_OFFSET,
+            "bands": BANDS,
+            "band_lo_hz": BAND_LO_HZ,
+            "band_hi_hz": BAND_HI_HZ,
+            "asm_fft": ASM,
+            "speech_floor_in_config": config.SPEECH_FLOOR / config.FULL_SCALE,
+        },
+        "noise": None,
+        "speech": None,
+        "clip": None,
+        "spectrum": None,
+        "recommended": None,
+    }
+
+    if noise_rms is not None:
+        data["noise"] = {
+            "median": noise_rms,
+            "max": noise_max,
+            "median_dbfs": config.dbfs(noise_rms),
+            "max_dbfs": config.dbfs(noise_max),
+            "median_spl": config.spl(noise_rms),
+            "percentiles": noise_pct,
+        }
+
+    if speech_rms is not None:
+        data["speech"] = {
+            "top_decile": speech_rms,
+            "peak": speech_peak,
+            "top_decile_dbfs": config.dbfs(speech_rms),
+            "peak_dbfs": config.dbfs(speech_peak),
+            "top_decile_spl": config.spl(speech_rms),
+            "percentiles": speech_pct,
+        }
+
+    if clip_peak is not None:
+        data["clip"] = {
+            "peak_sample": clip_peak,
+            "percent_of_full_scale": clip_peak / config.FULL_SCALE * 100,
+        }
+
+    if noise_bands is not None:
+        data["spectrum"] = {
+            "edges_hz": [int(edges[b] * bin_hz) for b in range(BANDS + 1)],
+            "energy": noise_bands,
+        }
+
+    floor = recommend()
+    if floor is not None:
+        data["recommended"] = {
+            "speech_floor": floor,
+            "speech_floor_fraction": floor / config.FULL_SCALE,
+            "speech_floor_dbfs": config.dbfs(floor),
+            "snr_db": config.dbfs(speech_rms) - config.dbfs(noise_rms),
+            "set_by": clamp_reason(),
+        }
+
+    gc.collect()        # a measurement just built and dropped a 250-item list
+    try:
+        with open(RESULTS_FILE, "w") as f:
+            json.dump(data, f)
+    except (OSError, MemoryError) as e:
+        # Never fatal. The console output above is still the real result, and
+        # losing the file must not cost you the measurement you just sat
+        # through five seconds of silence for.
+        print("WARNING: could not write %s (%s)" % (RESULTS_FILE, e))
 
 
 def draw():
@@ -329,12 +502,17 @@ def draw():
 
 def report():
     floor = recommend()
+    save_results()
     print()
     print("=" * 58)
     print("CALIBRATION RESULT")
     print("=" * 58)
     if floor is None:
         print("Incomplete -- run at least the NOISE and SPEECH measurements.")
+        print("You are on mode %s. Press MODE until the console says SPEECH,"
+              % MODES[mode])
+        print("then press UP and say 'Hey Pico' until the bar fills.")
+        print("(partial results saved to %s)" % RESULTS_FILE)
         return
     snr = config.dbfs(speech_rms) - config.dbfs(noise_rms)
     print("room noise  : %.1f dBFS  (~%.0f dB SPL)"
@@ -352,15 +530,50 @@ def report():
     print("    SPEECH_FLOOR = FULL_SCALE * %.5f" % (floor / config.FULL_SCALE))
     print()
     print("(currently %.5f)" % (config.SPEECH_FLOOR / config.FULL_SCALE))
-    print("Record the room and distance you measured in -- a false-accept")
-    print("rate without its noise environment is not a result.")
+    print("That floor was set by the %s rule." % clamp_reason())
+    print()
+    print("Saved to %s. Copy it off the Pico with:" % RESULTS_FILE)
+    print("    mpremote connect <port> cp :%s ." % RESULTS_FILE)
+    print("or run ./get-results.sh from the labs directory.")
 
 
 RUNNERS = [measure_noise, measure_speech, measure_clip, measure_spectrum, None]
 
+BAR = "=" * 62
+
+print()
+print(BAR)
 print("Lab 3: Microphone Calibration")
-print("MODE cycles tests, UP runs the current one, DOWN clears all.")
-print("Each measurement takes %d seconds.\n" % (MEASURE_MS // 1000))
+print(BAR)
+print("Goal: measure SPEECH_FLOOR -- the loudness gate Lab 4 uses to tell")
+print("'someone is talking' apart from 'the room is just sitting there'.")
+print("Guessing it wrong looks like a bug somewhere else, in both")
+print("directions: too high and the detector cannot hear you, too low and")
+print("it scores silence all day.")
+print()
+print("BUTTONS:  MODE = next test    UP = run this test    DOWN = clear all")
+print("Each measurement takes %d seconds and draws a progress bar." % (MEASURE_MS // 1000))
+print()
+print("RUN THESE IN ORDER. NOISE and SPEECH are both required before RESULT")
+print("can recommend anything -- the other two are diagnostics.")
+print()
+print("  1. NOISE     (you are here) stay quiet, press UP")
+print("  2. press MODE -> SPEECH     press UP, say 'Hey Pico' over and over")
+print("  3. press MODE -> CLIP       press UP, speak as loud as you ever would")
+print("  4. press MODE -> SPECTRUM   stay quiet, press UP")
+print("  5. press MODE -> RESULT     prints the line to paste into config.py")
+print()
+print("Measure in the room, and at the distance, you will actually use.")
+print("ROOM_NOTE is currently:")
+print("    %s" % ROOM_NOTE)
+print("Edit ROOM_NOTE at the top of this file if that is not right.")
+print()
+print("Results are written to %s after EVERY measurement, so an" % RESULTS_FILE)
+print("interrupted session still leaves usable data on the Pico. Copy it off")
+print("with:  mpremote connect <port> cp :%s ." % RESULTS_FILE)
+print(BAR)
+print()
+announce(MODE_NOISE)
 
 for _ in range(5):                        # settle the microphone
     mic.readinto(raw)
@@ -376,6 +589,7 @@ try:
         if settled and pressed(button_mode, last[0]):
             mode = (mode + 1) % len(MODES)
             last_press_ms = now
+            announce(mode)
             if mode == MODE_RESULT:
                 report()
             draw()
@@ -390,11 +604,13 @@ try:
 
         elif settled and pressed(button_down, last[2]):
             last_press_ms = now
-            noise_rms = noise_max = None
-            speech_rms = speech_peak = None
+            noise_rms = noise_max = noise_pct = None
+            speech_rms = speech_peak = speech_pct = None
             clip_peak = None
             noise_bands = None
-            print("cleared all measurements")
+            save_results()
+            print("cleared all measurements (and reset %s)" % RESULTS_FILE)
+            announce(mode)
             draw()
 
         last = [button_mode.value(), button_up.value(), button_down.value()]
