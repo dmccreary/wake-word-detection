@@ -12,7 +12,7 @@
 # Everything here runs on a plain Pico 2. The Pico 2 W's radio is not touched
 # until the networking labs.
 
-CONFIG_VERSION = "2.2.0"        # 2.2.0: latch_buttons() polls as well as IRQs
+CONFIG_VERSION = "2.3.0"        # 2.3.0: SPEECH_FLOOR measured in the basement shop
 
 from machine import Pin, SPI, I2S
 import math
@@ -90,7 +90,7 @@ FULL_SCALE = 8388608  # 2^23, the largest magnitude a 24-bit sample can hold
 # The INMP441 is specified at -26 dBFS for a 94 dB SPL input, which makes the
 # conversion dBFS = SPL - 120. The default works out to roughly 58 dB SPL:
 # above a quiet office, below conversation at a metre.
-SPEECH_FLOOR = FULL_SCALE * 0.0008
+SPEECH_FLOOR = FULL_SCALE * 0.00530
 
 # INMP441 sensitivity, used to turn a measured level into an estimated sound
 # pressure level. Nominal from the datasheet -- units vary by about +/-1 dB and

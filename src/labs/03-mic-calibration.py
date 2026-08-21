@@ -49,11 +49,12 @@ MEASURE_MS = 5000                        # how long each measurement runs
 FRAMES = int(MEASURE_MS / FRAME_MS)
 
 PROGRAM = "03-mic-calibration"
-# 1.6.0: buttons latched by IRQ *and* polling, and polled throughout every
-# measurement, so neither a blocked loop nor a dead interrupt can drop a press.
+# 1.7.0: close the mic across the flash write. The I2S DMA interrupt firing
+# during a flash program hard-faulted the chip, which looked like a dead MODE
+# button. 1.6.0: buttons latched by IRQ *and* polling, polled during measurements.
 # 1.5.0: buttons latched by IRQ. 1.4.0: two buttons + CLEAR mode, crash-safe JSON write, full mic-buffer
 # drain before each measurement, per-measurement timing and short-read detection.
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 
 RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
 
@@ -494,6 +495,25 @@ def save_results():
 
     gc.collect()        # a measurement just built and dropped a 250-item list
 
+    # THE MICROPHONE MUST BE CLOSED ACROSS THE FLASH WRITE.
+    #
+    # On the RP2, programming flash disables execute-in-place. For those few
+    # milliseconds the chip cannot fetch instructions from flash at all. The
+    # I2S microphone's DMA completion interrupt lives in flash, so if it fires
+    # inside that window the CPU jumps to code it cannot read -- a hard fault.
+    #
+    # It does not raise. It does not print. The board stops dead mid-write and
+    # stays dead through a soft reset, needing the USB cable pulled. The
+    # symptom is a lab that runs one measurement, prints its numbers, and then
+    # never responds to a button again -- which is exactly how this was found,
+    # after mistakenly blaming the buttons for it.
+    #
+    # Closing the stream removes the interrupt source entirely. Reopening costs
+    # a few milliseconds and an empty buffer, and every measurement drains the
+    # buffer before collecting anyway.
+    global mic
+    mic.deinit()
+
     # Write to a temp file and rename it into place, rather than opening the
     # real file directly. open(path, "w") truncates IMMEDIATELY, so a stop
     # button pressed mid-write would leave a 0-byte or half-written file where
@@ -522,6 +542,10 @@ def save_results():
             os.remove(tmp)
         except OSError:
             pass
+    finally:
+        # Always reopen, even if the write failed -- every later measurement
+        # needs the microphone back.
+        mic = config.init_microphone()
 
 
 def clear_all():

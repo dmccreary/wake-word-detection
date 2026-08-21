@@ -91,9 +91,16 @@ def analyze_noise(noise, full_scale, spl_offset):
     return "unclear"
 
 
-def analyze_spectrum(spec):
+def analyze_spectrum(spec, bin_hz):
     rule("NOISE SPECTRUM")
     edges, energy = spec["edges_hz"], spec["energy"]
+    # Lab 3 stores MEAN power per bin. Total power in a band needs the bin
+    # count too, and these bands are log-spaced -- the top band spans 31 bins
+    # against the bottom band's 1. Summing the means directly overstates the
+    # low end badly (89% vs the true 76%, on the first data this was run on).
+    bins = [int(round(h / bin_hz)) for h in edges]
+    counts = [max(1, bins[i + 1] - bins[i]) for i in range(len(energy))]
+    power = [energy[i] * counts[i] for i in range(len(energy))]
     peak = max(energy) or 1.0
     for b, e in enumerate(energy):
         rel = 10 * math.log10(e / peak + 1e-12)
@@ -105,9 +112,19 @@ def analyze_spectrum(spec):
     # Energy below ~400 Hz is fan and HVAC rumble. It is cheap to discard,
     # because almost nothing that distinguishes one spoken phrase from another
     # lives down there.
-    low = sum(energy[b] for b in range(len(energy)) if edges[b + 1] <= 400)
-    frac = low / sum(energy) if sum(energy) else 0
-    print("  energy below 400 Hz: %.0f%% of total" % (frac * 100))
+    total = sum(power) or 1.0
+    print()
+    print("  share of total noise power (bin-count weighted):")
+    for cut in (250, 400, 500):
+        low = sum(power[b] for b in range(len(power)) if edges[b + 1] <= cut)
+        f = low / total
+        # Removing a fraction f of the POWER leaves sqrt(1-f) of the
+        # amplitude, so the RMS drop in dB is -10*log10(1-f) already.
+        drop = -10 * math.log10(max(1e-9, 1 - f))
+        print("    below %4d Hz: %2.0f%%  -- discarding it lowers noise RMS %.1f dB"
+              % (cut, f * 100, drop))
+    low = sum(power[b] for b in range(len(power)) if edges[b + 1] <= 400)
+    frac = low / total
     if frac > 0.30:
         print()
         print("  A third or more of the noise is low-frequency rumble -- consistent")
@@ -209,7 +226,7 @@ def main():
             print("  range; the mic could sit closer.")
 
     if d.get("spectrum"):
-        analyze_spectrum(d["spectrum"])
+        analyze_spectrum(d["spectrum"], cfg["sample_rate"] / cfg["fft_n"])
 
     analyze_gate(d, full_scale, spl_offset)
     print()
