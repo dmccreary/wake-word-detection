@@ -29,8 +29,10 @@
 import gc
 import json
 import math
+import os
 import struct
 import time
+from machine import Pin
 
 import config
 
@@ -46,6 +48,12 @@ FRAME_MS = N / config.SAMPLE_RATE * 1000
 
 MEASURE_MS = 5000                        # how long each measurement runs
 FRAMES = int(MEASURE_MS / FRAME_MS)
+
+PROGRAM = "03-mic-calibration"
+# 1.5.0: buttons latched by IRQ -- a press during a measurement is no longer
+# lost. 1.4.0: two buttons + CLEAR mode, crash-safe JSON write, full mic-buffer
+# drain before each measurement, per-measurement timing and short-read detection.
+VERSION = "1.5.0"
 
 RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
 
@@ -117,18 +125,62 @@ speech_peak = None      # loudest frame while talking
 speech_pct = None       # full frame-RMS distribution while talking
 clip_peak = None        # largest raw sample magnitude
 noise_bands = None      # per-band noise energy
+collect_stats = None    # timing/short-read stats from the last measurement
 
 mode = MODE_NOISE
-last = [button_mode.value(), button_select.value()]
-last_press_ms = time.ticks_ms()
+
+# Buttons are LATCHED BY INTERRUPT, not polled.
+#
+# A measurement blocks this program for about eight seconds -- 2.7 counting
+# down, five collecting, then printing and writing the JSON. A polling loop
+# sees none of that time, so a press that both starts and ends inside the
+# window never produces the 1 -> 0 transition the loop is watching for. The
+# press is not delayed, it is lost, and the button looks dead. Pressing MODE
+# the instant the progress bar fills is exactly when this happens.
+#
+# A falling-edge IRQ records the press the moment it occurs, whatever the main
+# program is busy with, and the loop picks it up when it gets back.
+_flags = {"mode": False, "select": False}
+_last_irq_ms = {"mode": 0, "select": 0}
 
 
-def pressed(pin, previous):
-    return previous == 1 and pin.value() == 0
+def _latch(name):
+    """Build an IRQ handler that records one press of `name`.
+
+    Deliberately tiny: an interrupt handler that allocates can fail at any
+    moment, so this only reads a clock and assigns to keys that already exist.
+    The timestamp check is the debounce -- mechanical contacts bounce for a few
+    milliseconds and would otherwise register one press several times.
+    """
+    def handler(pin):
+        now = time.ticks_ms()
+        if time.ticks_diff(now, _last_irq_ms[name]) < config.DEBOUNCE_MS:
+            return
+        _last_irq_ms[name] = now
+        _flags[name] = True
+    return handler
+
+
+button_mode.irq(trigger=Pin.IRQ_FALLING, handler=_latch("mode"))
+button_select.irq(trigger=Pin.IRQ_FALLING, handler=_latch("select"))
+
+
+def took(name):
+    """Consume one latched press, if any is waiting."""
+    if _flags[name]:
+        _flags[name] = False
+        return True
+    return False
 
 
 def frame_rms():
-    """One frame: return (rms of the AC part, peak absolute sample)."""
+    """One frame: return (rms of the AC part, peak sample, samples read).
+
+    The sample count is returned because readinto() is allowed to come back
+    short. A short read is not an error, but it means the frame covers less
+    time than FRAME_MS claims -- and if it happens on every frame, a
+    measurement that says "5 seconds" is really listening for far less.
+    """
     n = mic.readinto(raw)
     count = n // 4
     words = struct.unpack("<%di" % count, raw[:count * 4])
@@ -144,7 +196,7 @@ def frame_rms():
         a = s if s >= 0 else -s
         if a > peak:
             peak = a
-    return math.sqrt(energy / count), peak
+    return math.sqrt(energy / count), peak, count
 
 
 def collect(label, seconds_note):
@@ -154,11 +206,18 @@ def collect(label, seconds_note):
     frames -- the mic keeps buffering during the redraw, and since this lab is
     not doing continuous detection a few dropped frames cost nothing.
     """
+    global collect_stats
     values = []
     peak_sample = 0
+    lo_count = hi_count = None
+    t_start = time.ticks_ms()
     for f in range(FRAMES):
-        r, p = frame_rms()
+        r, p, c = frame_rms()
         values.append(r)
+        if lo_count is None or c < lo_count:
+            lo_count = c
+        if hi_count is None or c > hi_count:
+            hi_count = c
         if p > peak_sample:
             peak_sample = p
         if f % 8 == 0:
@@ -172,6 +231,24 @@ def collect(label, seconds_note):
             if filled > 0:
                 oled.fill_rect(2, 48, filled, 6, config.WHITE)
             oled.show()
+    elapsed = time.ticks_diff(time.ticks_ms(), t_start)
+    collect_stats = {
+        "frames": FRAMES,
+        "elapsed_ms": elapsed,
+        "expected_ms": MEASURE_MS,
+        "samples_per_frame_min": lo_count,
+        "samples_per_frame_max": hi_count,
+        "samples_per_frame_expected": N,
+    }
+    # A measurement that runs far short of its wall-clock budget did not listen
+    # for as long as it claims, and every level in it is drawn from less audio
+    # than intended. Worth shouting about rather than burying in the JSON.
+    if elapsed < MEASURE_MS * 0.8:
+        print("  !! took only %d ms of the expected %d ms" % (elapsed, MEASURE_MS))
+        print("     samples/frame ran %d..%d, expected %d"
+              % (lo_count, hi_count, N))
+        print("     readinto() is returning short -- this measurement covers")
+        print("     less audio than it claims. Do not trust it.")
     values.sort()
     return values, peak_sample
 
@@ -296,6 +373,24 @@ def measure_spectrum():
     save_results()
 
 
+def drain_mic():
+    """Throw away everything the mic buffered while nothing was reading it.
+
+    config.MIC_BUFFER_BYTES is 40000 bytes -- 781 ms of audio at this rate. The
+    countdown reads nothing for 2.7 seconds, so by the time a measurement
+    starts that buffer is full of whatever happened while you were reaching for
+    the button: the click of the button itself, your hand passing the mic, a
+    chair. Discarding a single frame leaves 761 ms of it to be measured as if
+    it were the room, and since the gate is set from the WORST frame, one
+    buffered button click is enough to wreck the recommendation.
+
+    The buffered frames come back instantly; only the last couple block for
+    real audio, so this costs a few tens of milliseconds.
+    """
+    for _ in range(config.MIC_BUFFER_BYTES // len(raw) + 4):
+        mic.readinto(raw)
+
+
 def countdown(line1, line2):
     for c in (3, 2, 1):
         oled.fill(config.BLACK)
@@ -304,7 +399,7 @@ def countdown(line1, line2):
         oled.text("starting in %d" % c, 0, 44, config.WHITE)
         oled.show()
         time.sleep_ms(900)
-    mic.readinto(raw)          # discard whatever buffered during the countdown
+    drain_mic()
 
 
 def recommend():
@@ -362,7 +457,10 @@ def save_results():
     """
     data = {
         "lab": 3,
-        "schema": 1,
+        "schema": 2,
+        "program": PROGRAM,
+        "version": VERSION,
+        "config_version": config.CONFIG_VERSION,
         "room_note": ROOM_NOTE,
         "uptime_ms": time.ticks_ms(),
         "config": {
@@ -378,6 +476,7 @@ def save_results():
             "asm_fft": ASM,
             "speech_floor_in_config": config.SPEECH_FLOOR / config.FULL_SCALE,
         },
+        "timing": collect_stats,
         "noise": None,
         "speech": None,
         "clip": None,
@@ -428,14 +527,35 @@ def save_results():
         }
 
     gc.collect()        # a measurement just built and dropped a 250-item list
+
+    # Write to a temp file and rename it into place, rather than opening the
+    # real file directly. open(path, "w") truncates IMMEDIATELY, so a stop
+    # button pressed mid-write would leave a 0-byte or half-written file where
+    # a good result used to be -- destroying the previous measurement and
+    # producing something that is not even valid JSON. This way an interrupted
+    # write costs only the temp file.
+    tmp = RESULTS_FILE + ".tmp"
     try:
-        with open(RESULTS_FILE, "w") as f:
+        with open(tmp, "w") as f:
             json.dump(data, f)
+        # MicroPython's rename will not overwrite on every filesystem, so clear
+        # the target first. The gap between these two calls is the one moment
+        # the file does not exist -- microseconds, against a write that takes
+        # milliseconds.
+        try:
+            os.remove(RESULTS_FILE)
+        except OSError:
+            pass                            # first run: nothing to replace
+        os.rename(tmp, RESULTS_FILE)
     except (OSError, MemoryError) as e:
         # Never fatal. The console output above is still the real result, and
         # losing the file must not cost you the measurement you just sat
         # through five seconds of silence for.
         print("WARNING: could not write %s (%s)" % (RESULTS_FILE, e))
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 def clear_all():
@@ -575,6 +695,7 @@ BAR = "=" * 62
 
 print()
 print(BAR)
+print("%s v%s  (config v%s)" % (PROGRAM, VERSION, config.CONFIG_VERSION))
 print("Lab 3: Microphone Calibration")
 print(BAR)
 print("Goal: measure SPEECH_FLOOR -- the loudness gate Lab 4 uses to tell")
@@ -617,19 +738,14 @@ draw()
 
 try:
     while True:
-        now = time.ticks_ms()
-        settled = time.ticks_diff(now, last_press_ms) > config.DEBOUNCE_MS
-
-        if settled and pressed(button_mode, last[0]):
+        if took("mode"):
             mode = (mode + 1) % len(MODES)
-            last_press_ms = now
             announce(mode)
             if mode == MODE_RESULT:
                 report()
             draw()
 
-        elif settled and pressed(button_select, last[1]):
-            last_press_ms = now
+        elif took("select"):
             # RESULT is the one mode with no runner -- SELECT reprints instead.
             if RUNNERS[mode] is not None:
                 RUNNERS[mode]()
@@ -637,8 +753,7 @@ try:
                 report()
             draw()
 
-        last = [button_mode.value(), button_select.value()]
-        time.sleep_ms(30)
+        time.sleep_ms(20)
 
 except KeyboardInterrupt:
     mic.deinit()

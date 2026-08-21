@@ -21,6 +21,9 @@ import gc
 import time
 
 import config
+
+PROGRAM = "02-fft-test"
+VERSION = "1.0.0"
 import dwt_timer
 import fftlab
 
@@ -111,6 +114,7 @@ def bench(name, fft, load, run, samples):
     return total / TRIALS / 1000.0, best / 1000.0
 
 
+print("%s v%s  (config v%s)" % (PROGRAM, VERSION, config.CONFIG_VERSION))
 print("Lab 2: FFT Test")
 print("N = %d at %d Hz -> one frame is %.1f ms of sound" %
       (N, config.SAMPLE_RATE, FRAME_MS))

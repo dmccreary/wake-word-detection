@@ -17,6 +17,9 @@ import time
 
 import config
 
+PROGRAM = "01-setup"
+VERSION = "1.1.0"               # 1.1.0: two buttons, SELECT wraps the volume
+
 CHECKS = ["LED", "Display", "Buttons", "Microphone", "Speaker"]
 
 oled = config.init_display()
@@ -138,6 +141,7 @@ def check_speaker():
 RUNNERS = [check_led, check_display, check_buttons, check_microphone,
            check_speaker]
 
+print("%s v%s  (config v%s)" % (PROGRAM, VERSION, config.CONFIG_VERSION))
 print("Lab 1: Setup. MODE steps through checks, SELECT adjusts volume.")
 print("Checks:", ", ".join(CHECKS))
 draw("Starting...")

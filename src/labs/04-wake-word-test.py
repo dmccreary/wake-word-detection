@@ -102,6 +102,9 @@ REFRACTORY_MS = 1500
 
 DISPLAY_EVERY = 8                        # redraw every 8 frames (~160 ms)
 
+PROGRAM = "04-wake-word-test"
+VERSION = "1.1.0"               # 1.1.0: two buttons, FORGET mode, wrapping threshold
+
 MODE_LISTEN = 0
 MODE_ENROLL = 1
 MODE_FORGET = 2
@@ -415,6 +418,7 @@ def draw():
     oled.show()
 
 
+print("%s v%s  (config v%s)" % (PROGRAM, VERSION, config.CONFIG_VERSION))
 print("Lab 4: Wake Word Test")
 print("frame = %d samples = %.1f ms; window = %d frames = %d ms"
       % (N, FRAME_MS, TEMPLATE_FRAMES, int(TEMPLATE_FRAMES * FRAME_MS)))

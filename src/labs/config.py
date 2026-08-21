@@ -1,5 +1,9 @@
 # Hardware configuration for the smart speaker kit.
 #
+# CONFIG_VERSION is printed by every lab. Bump the MAJOR when a change would
+# make an existing lab misbehave rather than merely differ -- moving a pin, for
+# instance, which is exactly what the drop from three buttons to two did.
+#
 # Every lab in this course imports this file instead of repeating pin numbers,
 # so the whole kit is described in exactly one place. This is the same pattern
 # the prerequisite course (Real-Time DSP on a $5 Microcontroller) used, extended
@@ -7,6 +11,8 @@
 #
 # Everything here runs on a plain Pico 2. The Pico 2 W's radio is not touched
 # until the networking labs.
+
+CONFIG_VERSION = "2.0.0"        # 2.0.0: three buttons -> two (MODE 14, SELECT 15)
 
 from machine import Pin, SPI, I2S
 import math
