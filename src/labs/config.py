@@ -3,8 +3,7 @@
 # Every lab in this course imports this file instead of repeating pin numbers,
 # so the whole kit is described in exactly one place. This is the same pattern
 # the prerequisite course (Real-Time DSP on a $5 Microcontroller) used, extended
-# with the two things that course did not have: an audio OUTPUT path and a third
-# button.
+# with the thing that course did not have: an audio OUTPUT path.
 #
 # Everything here runs on a plain Pico 2. The Pico 2 W's radio is not touched
 # until the networking labs.
@@ -38,11 +37,19 @@ CS_PIN = 6
 # button's other leg goes to GND, and PULL_UP holds the pin at 1 until a press
 # pulls it to 0 -- so a press is a FALLING edge.
 #
-# MODE cycles the program's state; UP/DOWN adjust whatever the current mode
-# says is adjustable (volume in Lab 1, detection threshold in Lab 4).
-BUTTON_MODE_PIN = 13
-BUTTON_UP_PIN = 14
-BUTTON_DOWN_PIN = 15
+# The kit has TWO buttons, and every lab uses them the same way:
+#
+#   MODE   (GPIO 14)  cycles the program's state
+#   SELECT (GPIO 15)  acts within the current state
+#
+# SELECT does whatever the current mode says: run this test, enroll this
+# template, or step a value. Values WRAP rather than needing a second button --
+# volume runs 0..VOLUME_STEPS and back to 0, the Lab 4 threshold runs up to
+# 0.99 and back to 0.30. Anything destructive (clearing measurements, forgetting
+# a template) gets its own MODE position instead, so it takes a deliberate walk
+# through the mode list and can never fire from a stray press.
+BUTTON_MODE_PIN = 14
+BUTTON_SELECT_PIN = 15
 
 DEBOUNCE_MS = 50
 
@@ -124,10 +131,9 @@ def init_display():
 
 
 def init_buttons():
-    """The three buttons, in the order (mode, up, down)."""
+    """The two buttons, in the order (mode, select)."""
     return (Pin(BUTTON_MODE_PIN, Pin.IN, Pin.PULL_UP),
-            Pin(BUTTON_UP_PIN, Pin.IN, Pin.PULL_UP),
-            Pin(BUTTON_DOWN_PIN, Pin.IN, Pin.PULL_UP))
+            Pin(BUTTON_SELECT_PIN, Pin.IN, Pin.PULL_UP))
 
 
 def init_microphone(rate=SAMPLE_RATE):

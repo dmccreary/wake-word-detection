@@ -36,13 +36,18 @@ else in the kit knows a pin number, so re-wiring means editing one file.
 | SD | 12 |
 | L/R | GND (left channel) |
 
-**Buttons — three momentary push buttons**
+**Buttons — two momentary push buttons**
 
 | Button | Pico GPIO | Role |
 |---|---|---|
-| MODE | 13 | Cycle the program's state |
-| UP | 14 | Volume up / threshold up / record enrollment |
-| DOWN | 15 | Volume down / threshold down / forget enrollments |
+| MODE | 14 | Cycle the program's state |
+| SELECT | 15 | Act within the current state |
+
+Two buttons, so every lab shares one scheme: MODE cycles, SELECT acts.
+Adjustable values **wrap** instead of needing an up/down pair — volume runs
+`0 … VOLUME_STEPS` then back to `0`, Lab 4's threshold runs up to `0.99` then
+back to `0.30`. Destructive actions get their own mode position (Lab 3 `CLEAR`,
+Lab 4 `FORGET`) so they cannot fire from a stray press.
 
 Each button's other leg goes to **GND**. `PULL_UP` holds the pin at 1, so a
 press is a **falling** edge — the detail that trips up most people first time.

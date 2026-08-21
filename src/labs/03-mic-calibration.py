@@ -11,14 +11,18 @@
 #   too HIGH -> "the detector cannot hear me"      (really: gated out)
 #   too LOW  -> "it fires at nothing"              (really: noise scored)
 #
-# So measure it. Five modes, MODE to advance, UP to start/restart the current
-# measurement, DOWN to clear everything:
+# So measure it. Six modes; MODE advances, SELECT acts on the current one:
 #
 #   0 NOISE    the room with nobody talking
 #   1 SPEECH   you, at the distance you will actually use
 #   2 CLIP     headroom check -- are you overloading the microphone?
 #   3 SPECTRUM which bands the room's noise actually occupies
 #   4 RESULT   the SPEECH_FLOOR to paste into config.py
+#   5 CLEAR    throw it all away and start over
+#
+# CLEAR is a mode rather than a second button because the kit has only two
+# buttons, and because a destructive action you have to walk the whole mode
+# list to reach cannot fire from a stray press.
 #
 # Nothing here is real-time critical, so unlike Lab 4 this lab draws freely.
 
@@ -48,27 +52,30 @@ RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
 # EDIT THIS LINE before you measure. A noise floor without its room is not a
 # result, and by the time this JSON reaches a laptop nobody remembers which
 # room it came from or how far away you were sitting.
-ROOM_NOTE = "describe the room and your distance from the mic"
+ROOM_NOTE = "The room is my shop in the basement and there is a furnace fan running. I sit 15 inches from the Mic above the display over the Pico 2."
 
 BANDS = 12                               # must match Lab 4
 BAND_LO_HZ = 150
 BAND_HI_HZ = 6000
 
-MODES = ["NOISE", "SPEECH", "CLIP", "SPECTRUM", "RESULT"]
-MODE_NOISE, MODE_SPEECH, MODE_CLIP, MODE_SPECTRUM, MODE_RESULT = range(5)
+MODES = ["NOISE", "SPEECH", "CLIP", "SPECTRUM", "RESULT", "CLEAR"]
+(MODE_NOISE, MODE_SPEECH, MODE_CLIP, MODE_SPECTRUM,
+ MODE_RESULT, MODE_CLEAR) = range(6)
 
 # Reprinted every time MODE advances, so the console always says what the
 # button you are about to press is going to do. One tuple of lines per mode.
 MODE_HELP = (
-    ("Leave the room exactly as you will use it. Stay silent, press UP.",),
-    ("Press UP, then say 'Hey Pico' over and over -- at the distance you",
+    ("Leave the room exactly as you will use it. Stay silent, press SELECT.",),
+    ("Press SELECT, then say 'Hey Pico' over and over -- at the distance you",
      "will really use -- until the progress bar fills.",
      "REQUIRED: without this there is nothing to recommend."),
-    ("Press UP, then speak as LOUDLY as you ever would.",
+    ("Press SELECT, then speak as LOUDLY as you ever would.",
      "Headroom check only; this does not feed the recommendation."),
-    ("Stay silent again and press UP.",
+    ("Stay silent again and press SELECT.",
      "Shows which frequency bands the room's noise actually occupies."),
-    ("Press UP to reprint the summary and rewrite " + RESULTS_FILE + ".",),
+    ("Press SELECT to reprint the summary and rewrite " + RESULTS_FILE + ".",),
+    ("Press SELECT to throw away every measurement and start over.",
+     "Nothing is cleared until you press it."),
 )
 
 
@@ -80,7 +87,7 @@ def announce(m):
         print("    " + line)
 
 oled = config.init_display()
-button_mode, button_up, button_down = config.init_buttons()
+button_mode, button_select = config.init_buttons()
 mic = config.init_microphone()
 raw = bytearray(N * 4)
 
@@ -112,7 +119,7 @@ clip_peak = None        # largest raw sample magnitude
 noise_bands = None      # per-band noise energy
 
 mode = MODE_NOISE
-last = [button_mode.value(), button_up.value(), button_down.value()]
+last = [button_mode.value(), button_select.value()]
 last_press_ms = time.ticks_ms()
 
 
@@ -431,6 +438,25 @@ def save_results():
         print("WARNING: could not write %s (%s)" % (RESULTS_FILE, e))
 
 
+def clear_all():
+    """Throw away every measurement and reset the results file.
+
+    A mode of its own rather than a second button: the kit has two buttons and
+    neither is spare, and making this take a deliberate walk through the whole
+    mode list means five seconds of measured silence cannot be destroyed by a
+    stray press.
+    """
+    global noise_rms, noise_max, noise_pct
+    global speech_rms, speech_peak, speech_pct
+    global clip_peak, noise_bands
+    noise_rms = noise_max = noise_pct = None
+    speech_rms = speech_peak = speech_pct = None
+    clip_peak = None
+    noise_bands = None
+    save_results()
+    print("cleared all measurements (and reset %s)" % RESULTS_FILE)
+
+
 def draw():
     oled.fill(config.BLACK)
     oled.text("Lab 3: " + MODES[mode], 0, 0, config.WHITE)
@@ -440,7 +466,7 @@ def draw():
         if noise_rms is None:
             oled.text("Measures the", 0, 18, config.WHITE)
             oled.text("quiet room.", 0, 28, config.WHITE)
-            oled.text("UP to start", 0, 46, config.WHITE)
+            oled.text("SELECT to run", 0, 46, config.WHITE)
         else:
             oled.text("med %.0f dBFS" % config.dbfs(noise_rms), 0, 18, config.WHITE)
             oled.text("max %.0f dBFS" % config.dbfs(noise_max), 0, 30, config.WHITE)
@@ -450,7 +476,7 @@ def draw():
         if speech_rms is None:
             oled.text("Talk at your", 0, 18, config.WHITE)
             oled.text("normal spot.", 0, 28, config.WHITE)
-            oled.text("UP to start", 0, 46, config.WHITE)
+            oled.text("SELECT to run", 0, 46, config.WHITE)
         else:
             oled.text("d90 %.0f dBFS" % config.dbfs(speech_rms), 0, 18, config.WHITE)
             oled.text("~%.0f dB SPL" % config.spl(speech_rms), 0, 30, config.WHITE)
@@ -462,7 +488,7 @@ def draw():
         if clip_peak is None:
             oled.text("Checks headroom", 0, 18, config.WHITE)
             oled.text("when you shout.", 0, 28, config.WHITE)
-            oled.text("UP to start", 0, 46, config.WHITE)
+            oled.text("SELECT to run", 0, 46, config.WHITE)
         else:
             pct = clip_peak / config.FULL_SCALE * 100
             oled.text("peak %.1f%% FS" % pct, 0, 18, config.WHITE)
@@ -473,7 +499,7 @@ def draw():
         if noise_bands is None:
             oled.text("Where the room", 0, 18, config.WHITE)
             oled.text("noise lives.", 0, 28, config.WHITE)
-            oled.text("UP to start", 0, 46, config.WHITE)
+            oled.text("SELECT to run", 0, 46, config.WHITE)
         else:
             peak = max(noise_bands) or 1.0
             w = config.WIDTH // BANDS
@@ -483,6 +509,11 @@ def draw():
                     oled.fill_rect(b * w, 50 - h, w - 1, h, config.WHITE)
             oled.text("low", 0, 54, config.WHITE)
             oled.text("high", 96, 54, config.WHITE)
+
+    elif mode == MODE_CLEAR:
+        oled.text("Discard every", 0, 18, config.WHITE)
+        oled.text("measurement?", 0, 28, config.WHITE)
+        oled.text("SELECT = yes", 0, 46, config.WHITE)
 
     else:  # MODE_RESULT
         floor = recommend()
@@ -511,7 +542,7 @@ def report():
         print("Incomplete -- run at least the NOISE and SPEECH measurements.")
         print("You are on mode %s. Press MODE until the console says SPEECH,"
               % MODES[mode])
-        print("then press UP and say 'Hey Pico' until the bar fills.")
+        print("then press SELECT and say 'Hey Pico' until the bar fills.")
         print("(partial results saved to %s)" % RESULTS_FILE)
         return
     snr = config.dbfs(speech_rms) - config.dbfs(noise_rms)
@@ -537,7 +568,8 @@ def report():
     print("or run ./get-results.sh from the labs directory.")
 
 
-RUNNERS = [measure_noise, measure_speech, measure_clip, measure_spectrum, None]
+RUNNERS = [measure_noise, measure_speech, measure_clip, measure_spectrum,
+           None, clear_all]
 
 BAR = "=" * 62
 
@@ -551,17 +583,19 @@ print("Guessing it wrong looks like a bug somewhere else, in both")
 print("directions: too high and the detector cannot hear you, too low and")
 print("it scores silence all day.")
 print()
-print("BUTTONS:  MODE = next test    UP = run this test    DOWN = clear all")
+print("BUTTONS:  MODE (GPIO %d) = next test    SELECT (GPIO %d) = run it"
+      % (config.BUTTON_MODE_PIN, config.BUTTON_SELECT_PIN))
 print("Each measurement takes %d seconds and draws a progress bar." % (MEASURE_MS // 1000))
 print()
 print("RUN THESE IN ORDER. NOISE and SPEECH are both required before RESULT")
 print("can recommend anything -- the other two are diagnostics.")
 print()
-print("  1. NOISE     (you are here) stay quiet, press UP")
-print("  2. press MODE -> SPEECH     press UP, say 'Hey Pico' over and over")
-print("  3. press MODE -> CLIP       press UP, speak as loud as you ever would")
-print("  4. press MODE -> SPECTRUM   stay quiet, press UP")
-print("  5. press MODE -> RESULT     prints the line to paste into config.py")
+print("  1. NOISE     (you are here) stay quiet, press SELECT")
+print("  2. MODE -> SPEECH     SELECT, then say 'Hey Pico' over and over")
+print("  3. MODE -> CLIP       SELECT, then speak as loud as you ever would")
+print("  4. MODE -> SPECTRUM   stay quiet, press SELECT")
+print("  5. MODE -> RESULT     prints the line to paste into config.py")
+print("  6. MODE -> CLEAR      only if you want to discard it all and restart")
 print()
 print("Measure in the room, and at the distance, you will actually use.")
 print("ROOM_NOTE is currently:")
@@ -594,26 +628,16 @@ try:
                 report()
             draw()
 
-        elif settled and pressed(button_up, last[1]):
+        elif settled and pressed(button_select, last[1]):
             last_press_ms = now
+            # RESULT is the one mode with no runner -- SELECT reprints instead.
             if RUNNERS[mode] is not None:
                 RUNNERS[mode]()
             else:
                 report()
             draw()
 
-        elif settled and pressed(button_down, last[2]):
-            last_press_ms = now
-            noise_rms = noise_max = noise_pct = None
-            speech_rms = speech_peak = speech_pct = None
-            clip_peak = None
-            noise_bands = None
-            save_results()
-            print("cleared all measurements (and reset %s)" % RESULTS_FILE)
-            announce(mode)
-            draw()
-
-        last = [button_mode.value(), button_up.value(), button_down.value()]
+        last = [button_mode.value(), button_select.value()]
         time.sleep_ms(30)
 
 except KeyboardInterrupt:

@@ -8,9 +8,10 @@
 # number. Every peripheral comes from config.py, so re-wiring the kit means
 # editing one file instead of twenty.
 #
-# Press MODE to step through the checks. In the Speaker check, UP and DOWN
-# change the volume -- the same up/down pair Lab 4 reuses for the detection
-# threshold.
+# Press MODE to step through the checks. In the Speaker check, SELECT steps the
+# volume up and wraps back to 0 at the top -- the same wrapping SELECT that Lab
+# 4 reuses for the detection threshold. The kit has only these two buttons, so
+# every value cycles in one direction rather than needing an up/down pair.
 
 import time
 
@@ -20,7 +21,7 @@ CHECKS = ["LED", "Display", "Buttons", "Microphone", "Speaker"]
 
 oled = config.init_display()
 led = config.init_led()
-button_mode, button_up, button_down = config.init_buttons()
+button_mode, button_select = config.init_buttons()
 amp_enable = config.init_amp_enable()
 
 check = 0
@@ -34,7 +35,7 @@ mic_peak = 0
 mic = None
 speaker = None
 
-last = [button_mode.value(), button_up.value(), button_down.value()]
+last = [button_mode.value(), button_select.value()]
 last_press_ms = time.ticks_ms()
 
 
@@ -86,14 +87,17 @@ def check_display():
 
 
 def check_buttons():
-    """Report which buttons are held. Proves all three are wired and pulled up.
+    """Report which buttons are held. Proves both are wired and pulled up.
 
-    PULL_UP means an unpressed button reads 1, so "down" here means value 0.
+    PULL_UP means an unpressed button reads 1, so "held" here means value 0.
+    Both buttons are shown, MODE included -- if MODE were miswired you could
+    not have reached this check, but seeing it register is what proves the
+    pull-up is working rather than the pin floating.
     """
     held = ""
-    held += "U" if button_up.value() == 0 else "-"
-    held += "D" if button_down.value() == 0 else "-"
-    draw("UP/DOWN held:", "   %s" % held, "presses: %d" % press_count)
+    held += "M" if button_mode.value() == 0 else "-"
+    held += "S" if button_select.value() == 0 else "-"
+    draw("MODE/SELECT held:", "   %s" % held, "presses: %d" % press_count)
 
 
 def check_microphone():
@@ -122,11 +126,11 @@ def check_microphone():
 
 
 def check_speaker():
-    """Play a short beep. UP/DOWN change the volume it plays at."""
+    """Play a short beep. SELECT steps the volume it plays at."""
     global speaker
     if speaker is None:
         speaker = config.init_speaker()
-    draw("UP/DOWN volume", "volume: %d/%d" % (volume, config.VOLUME_STEPS),
+    draw("SELECT = volume", "volume: %d/%d" % (volume, config.VOLUME_STEPS),
          "beeping...")
     config.play_tone(speaker, 880, 120, volume)
 
@@ -134,7 +138,7 @@ def check_speaker():
 RUNNERS = [check_led, check_display, check_buttons, check_microphone,
            check_speaker]
 
-print("Lab 1: Setup. MODE steps through checks, UP/DOWN adjust volume.")
+print("Lab 1: Setup. MODE steps through checks, SELECT adjusts volume.")
 print("Checks:", ", ".join(CHECKS))
 draw("Starting...")
 
@@ -149,19 +153,15 @@ try:
             last_press_ms = now
             print("check ->", CHECKS[check])
 
-        if settled and pressed(button_up, last[1]):
+        if settled and pressed(button_select, last[1]):
             press_count += 1
-            volume = min(config.VOLUME_STEPS, volume + 1)
+            # Wraps instead of clamping: with one button there is no way back
+            # down, so the top of the range has to lead round to the bottom.
+            volume = 0 if volume >= config.VOLUME_STEPS else volume + 1
             last_press_ms = now
             print("volume ->", volume)
 
-        if settled and pressed(button_down, last[2]):
-            press_count += 1
-            volume = max(0, volume - 1)
-            last_press_ms = now
-            print("volume ->", volume)
-
-        last = [button_mode.value(), button_up.value(), button_down.value()]
+        last = [button_mode.value(), button_select.value()]
 
         RUNNERS[check]()
 

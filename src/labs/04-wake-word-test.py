@@ -21,12 +21,17 @@
 #      match scores 1.0.
 #   6. Above threshold, and loud enough to be speech at all -> WAKE.
 #
-# CONTROLS
-#   MODE  cycles LISTEN -> ENROLL -> LISTEN
-#   UP    in LISTEN: raise the threshold (stricter, fewer false accepts)
-#         in ENROLL: record one repetition of your phrase
-#   DOWN  in LISTEN: lower the threshold (looser, fewer false rejects)
-#         in ENROLL: forget every enrollment and start over
+# CONTROLS -- the kit has two buttons, MODE and SELECT.
+#   MODE    cycles LISTEN -> ENROLL -> FORGET -> LISTEN
+#   SELECT  in LISTEN: raise the threshold one step. It WRAPS: past
+#                      THRESHOLD_MAX it returns to THRESHOLD_MIN, which is how
+#                      one button covers a range that used to need two.
+#           in ENROLL: record one repetition of your phrase
+#           in FORGET: discard every enrollment and start over
+#
+# FORGET is its own mode rather than a long-press because throwing away an
+# enrollment you spent a minute recording should take a deliberate walk through
+# the mode list, not a mistimed hold.
 
 import math
 import struct
@@ -74,6 +79,12 @@ TEMPLATE_FRAMES = 40                     # 800 ms -- fits a 3-syllable phrase
 THRESHOLD_START = 0.70
 THRESHOLD_STEP = 0.01
 
+# With one button the threshold can only travel in one direction, so the range
+# is a loop: step past the top and it comes back at the bottom. The bounds are
+# the same ones the old two-button version clamped to.
+THRESHOLD_MIN = 0.30
+THRESHOLD_MAX = 0.99
+
 # A normalized silence spectrum can match another normalized silence spectrum
 # almost perfectly, so score alone is not enough -- the frame has to be loud
 # enough to be speech in the first place. This gate is what stops a quiet room
@@ -93,10 +104,11 @@ DISPLAY_EVERY = 8                        # redraw every 8 frames (~160 ms)
 
 MODE_LISTEN = 0
 MODE_ENROLL = 1
-MODE_NAMES = ["LISTEN", "ENROLL"]
+MODE_FORGET = 2
+MODE_NAMES = ["LISTEN", "ENROLL", "FORGET"]
 
 oled = config.init_display()
-button_mode, button_up, button_down = config.init_buttons()
+button_mode, button_select = config.init_buttons()
 mic = config.init_microphone()
 led = config.init_led()
 
@@ -143,7 +155,7 @@ banner_until_ms = 0
 worst_frame_ms = 0.0
 overruns = 0
 
-last = [button_mode.value(), button_up.value(), button_down.value()]
+last = [button_mode.value(), button_select.value()]
 last_press_ms = time.ticks_ms()
 
 
@@ -366,9 +378,16 @@ def draw():
 
     if mode == MODE_ENROLL:
         oled.text("samples: %d" % enrollments, 0, 16, config.WHITE)
-        oled.text("UP   = record", 0, 30, config.WHITE)
-        oled.text("DOWN = forget", 0, 40, config.WHITE)
-        oled.text("MODE = listen", 0, 52, config.WHITE)
+        oled.text("SELECT = record", 0, 30, config.WHITE)
+        oled.text("MODE   = next", 0, 52, config.WHITE)
+        oled.show()
+        return
+
+    if mode == MODE_FORGET:
+        oled.text("samples: %d" % enrollments, 0, 16, config.WHITE)
+        oled.text("Discard the", 0, 28, config.WHITE)
+        oled.text("enrollment?", 0, 38, config.WHITE)
+        oled.text("SELECT = yes", 0, 52, config.WHITE)
         oled.show()
         return
 
@@ -401,7 +420,16 @@ print("frame = %d samples = %.1f ms; window = %d frames = %d ms"
       % (N, FRAME_MS, TEMPLATE_FRAMES, int(TEMPLATE_FRAMES * FRAME_MS)))
 print("bands = %d, bins %d..%d" % (BANDS, edges[0], edges[-1]))
 print()
-print("MODE cycles LISTEN/ENROLL. Enroll your phrase 3-5 times, then listen.")
+print("BUTTONS:  MODE (GPIO %d) cycles LISTEN -> ENROLL -> FORGET"
+      % config.BUTTON_MODE_PIN)
+print("          SELECT (GPIO %d) acts on the current mode:"
+      % config.BUTTON_SELECT_PIN)
+print("            LISTEN  raise threshold one step (wraps %.2f -> %.2f)"
+      % (THRESHOLD_MAX, THRESHOLD_MIN))
+print("            ENROLL  record one repetition of your phrase")
+print("            FORGET  discard every enrollment")
+print()
+print("Enroll your phrase 3-5 times, then MODE back round to LISTEN.")
 print()
 
 # Settle the microphone: the first reads after power-up are garbage.
@@ -418,34 +446,35 @@ try:
         settled = time.ticks_diff(now, last_press_ms) > config.DEBOUNCE_MS
 
         if settled and pressed(button_mode, last[0]):
-            mode = MODE_ENROLL if mode == MODE_LISTEN else MODE_LISTEN
+            mode = (mode + 1) % len(MODE_NAMES)
             last_press_ms = now
             frames_seen = 0                    # window is stale after a mode change
             print("mode ->", MODE_NAMES[mode])
             draw()
 
-        elif settled and pressed(button_up, last[1]):
+        elif settled and pressed(button_select, last[1]):
             last_press_ms = now
             if mode == MODE_ENROLL:
                 enroll()
                 frames_seen = 0
-            else:
-                threshold = min(0.99, threshold + THRESHOLD_STEP)
-                print("threshold ->", threshold)
-            draw()
-
-        elif settled and pressed(button_down, last[2]):
-            last_press_ms = now
-            if mode == MODE_ENROLL:
+            elif mode == MODE_FORGET:
                 forget()
             else:
-                threshold = max(0.30, threshold - THRESHOLD_STEP)
+                # Rounded, not accumulated: adding 0.01 repeatedly to a float
+                # drifts, and a threshold printed as 0.7999999 is a bug report
+                # waiting to happen. Wraps at the top -- one button cannot walk
+                # back down.
+                threshold = round(threshold + THRESHOLD_STEP, 2)
+                if threshold > THRESHOLD_MAX:
+                    threshold = THRESHOLD_MIN
                 print("threshold ->", threshold)
             draw()
 
-        last = [button_mode.value(), button_up.value(), button_down.value()]
+        last = [button_mode.value(), button_select.value()]
 
-        if mode == MODE_ENROLL:
+        # Neither ENROLL nor FORGET runs the detector -- both just wait for a
+        # button, so there is no reason to spend a frame time on the FFT.
+        if mode != MODE_LISTEN:
             time.sleep_ms(20)
             continue
 

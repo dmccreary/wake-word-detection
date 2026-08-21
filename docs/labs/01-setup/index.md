@@ -228,13 +228,19 @@ A](../../appendices/parts-list/index.md#why-the-242-display-and-what-it-costs).
     mute-and-resume mitigation later in the course. Set `SPK_ENABLE_PIN = None` in `config.py`
     if you leave it unwired.
 
-**Buttons — three momentary push buttons**
+**Buttons — two momentary push buttons**
 
 | Button | Pico 2 | Role in this lab |
 |---|---|---|
-| MODE | **GPIO 13** | advance to the next check |
-| UP | **GPIO 14** | volume up |
-| DOWN | **GPIO 15** | volume down |
+| MODE | **GPIO 14** | advance to the next check |
+| SELECT | **GPIO 15** | act within the current check (here: volume) |
+
+Two buttons, not three, and every lab in this course uses them the same way: **MODE** cycles
+state, **SELECT** acts within it. Because there is no second button to walk a value back down,
+adjustable values **wrap** — volume runs `0 … VOLUME_STEPS` and then back to `0`, and Lab 4's
+detection threshold runs up to `0.99` and returns to `0.30`. Anything destructive gets its own
+mode position instead, so it takes a deliberate walk through the mode list rather than a
+mistimed button hold.
 
 Each button's other leg goes to **GND**.
 
@@ -269,9 +275,9 @@ Press **MODE** to advance. Each check is designed so that a wiring fault has an 
 |---|---|---|
 | 1. LED | Onboard LED blinking | The program isn't running at all |
 | 2. Display | An outline box, a filled box, a diagonal line | SPI wiring |
-| 3. Buttons | `U`/`D` appear while held; press count rises | Button wiring or missing GND |
+| 3. Buttons | `M`/`S` appear while held; press count rises | Button wiring or missing GND |
 | 4. Microphone | Peak % rises when you speak | Mic wiring or L/R not grounded |
-| 5. Speaker | An 880 Hz beep; UP/DOWN change volume | Amp wiring or power |
+| 5. Speaker | An 880 Hz beep; SELECT steps the volume | Amp wiring or power |
 
 ### Step 4 — Confirm the microphone actually responds
 
@@ -283,7 +289,7 @@ what `config.read_samples()` exists to handle.
 ## Expected Output
 
 ```
-Lab 1: Setup. MODE steps through checks, UP/DOWN adjust volume.
+Lab 1: Setup. MODE steps through checks, SELECT adjusts volume.
 Checks: LED, Display, Buttons, Microphone, Speaker
 check -> Display
 check -> Buttons
