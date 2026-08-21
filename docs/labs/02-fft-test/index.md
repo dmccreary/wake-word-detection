@@ -48,9 +48,9 @@ A wake-word detector cannot work that way. It runs the same capture-and-analyze 
 continuously, and audio arrives whether or not you are ready for it. That converts a preference
 into a deadline:
 
-$$
+\[
 \text{frame duration} = \frac{N}{f_s} = \frac{256}{12800} = 20\ \text{ms}
-$$
+\]
 
 256 samples at 12,800 Hz **is** 20 ms of sound. Not approximately — exactly. If processing one
 frame takes longer than 20 ms, the next frame's audio arrives while you are still working on the
@@ -122,8 +122,8 @@ chip at 512 points:
 | Pure-Python FFT | 140 ms |
 | Assembly FFT | 0.85 ms |
 
-An FFT is $O(N \log N)$, so halving $N$ from 512 to 256 cuts the work by roughly
-$\frac{512 \times 9}{256 \times 8} = 2.25\times$.
+An FFT is \(O(N \log N)\), so halving \(N\) from 512 to 256 cuts the work by roughly
+\(\frac{512 \times 9}{256 \times 8} = 2.25\times\).
 
 **Write down** what you expect for each implementation at N = 256, and what percentage of a 20 ms
 budget that is. Then run the lab and see how wrong you were. Being wrong on paper is the intended

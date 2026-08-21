@@ -17,7 +17,7 @@ the networking labs later in the course.
 Pin assignments live in exactly one place — [`config.py`](config.py). Nothing
 else in the kit knows a pin number, so re-wiring means editing one file.
 
-**Display — SSD1306 128×64 OLED (SPI0)**
+**Display — 2.42" SSD1306/SSD1309 128×64 OLED (SPI0)**
 
 | OLED pin | Pico GPIO |
 |---|---|

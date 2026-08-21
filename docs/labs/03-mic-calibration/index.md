@@ -69,9 +69,9 @@ In both cases the threshold knob is the wrong knob, and you can lose an afternoo
     specified at **−26 dBFS for a 94 dB SPL input**, which makes the conversion
     `dBFS = SPL − 120`. Running that constant through it:
 
-    $$
+    \[
     20\log_{10}(0.004) = -48\ \text{dBFS} \quad\Rightarrow\quad 72\ \text{dB SPL}
-    $$
+    \]
 
     72 dB SPL is a raised voice at arm's length. Ordinary conversation at half a metre is about
     66 dB SPL, and at a metre about 60 — **both below the gate**. The detector would have demanded
@@ -84,9 +84,9 @@ In both cases the threshold knob is the wrong knob, and you can lose an afternoo
 
 A level here is expressed relative to full scale:
 
-$$
+\[
 \text{dBFS} = 20 \log_{10}\!\left(\frac{\text{RMS}}{\text{full scale}}\right)
-$$
+\]
 
 Full scale is 0 dB and everything real is negative. Decibels are used because hearing and acoustic
 levels span an enormous range — a quiet room and a shout differ by a factor of several thousand in
@@ -94,9 +94,9 @@ amplitude, which is unreadable as a raw number and obvious as ~40 dB.
 
 The INMP441 datasheet's sensitivity figure lets you *estimate* sound pressure level from that:
 
-$$
+\[
 \text{dB SPL} \approx \text{dBFS} + 120
-$$
+\]
 
 !!! note "Estimated, not calibrated"
     That conversion uses a nominal datasheet figure. Individual units vary by about ±1 dB, and

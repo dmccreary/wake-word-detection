@@ -20,8 +20,13 @@ HEIGHT = 64
 WHITE = 1
 BLACK = 0
 
-# --- Display: SSD1306 128x64 OLED over SPI ---------------------------------
+# --- Display: 2.42" SSD1306/SSD1309 128x64 OLED over SPI -------------------
 # Unchanged from the prerequisite course's kit.
+#
+# The 2.42" module is preferred over the common 0.96"/1.3" ones. All three are
+# 128x64 with the same pinout and driver, so nothing below changes -- you are
+# buying legibility, not capability. This device is meant to be glanced at from
+# across a room, not read at 30 cm like a bench instrument.
 SCL_PIN = 2
 SDA_PIN = 3
 RES_PIN = 4

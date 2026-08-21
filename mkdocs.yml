@@ -47,6 +47,9 @@ nav:
       - 3. Microphone Calibration: labs/03-mic-calibration/index.md
       - 4. Wake Word Test: labs/04-wake-word-test/index.md
 
+  - Appendices:
+      - A. Parts List and Cost: appendices/parts-list/index.md
+
   - Learning Graph:
       - Introduction: learning-graph/index.md
       - Course Description Assessment: learning-graph/course-description-assessment.md
@@ -123,16 +126,28 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
+  # KaTeX equation rendering, configured currency-safe.
+  # inline_syntax 'round'  -> inline math is \( ... \) only
+  # block_syntax  'square' -> display math is \[ ... \] only
+  # Deliberately EXCLUDES the 'dollar' syntaxes. This book's title contains
+  # "$7" and Appendix A is a price list, so letting $ or $$ start math would
+  # turn currency into equations.
   - pymdownx.arithmatex:
       generic: true
+      inline_syntax: ['round']
+      block_syntax: ['square']
 
 # Custom CSS — file is created by init-textbook
 extra_css:
   - css/extra.css
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css
 
-# Custom JavaScript — uncomment once a corresponding file exists
-# extra_javascript:
-#   - js/extra.js
+# Custom JavaScript — KaTeX renders the LaTeX equations.
+# Write equations in BACKSLASH notation: \( inline \) and \[ display \].
+extra_javascript:
+  - js/katex.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js
 
 # Exclude prompt scratch files and TODOs from build/search/sitemap
 exclude_docs: |

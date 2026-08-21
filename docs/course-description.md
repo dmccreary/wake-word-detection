@@ -101,13 +101,17 @@ What is explicitly taught from zero, with no assumed background:
 ## The Hardware Kit
 
 Every student needs the prerequisite course's kit plus a small audio-output add-on and one extra
-button, for roughly **$8 more** — or about **$10 more** if the board also has to be swapped from a
-plain Pico 2 to a Pico 2 W.
+button. A complete kit runs about **$26 per student** bought in classroom multipacks and about
+**$36–48** buying one of everything; **$36** is a reasonable single-kit planning figure. For
+students who already own the prerequisite kit the upgrade is roughly **$4–8**, plus **$2** if they
+are buying a board anyway or the full **$7** if they already own a plain Pico 2 and need to add a
+W. Full breakdown, purchasing tiers, and substitutions: [Appendix A: Parts List and
+Cost](appendices/parts-list/index.md).
 
 | Component | Approx. cost | First used | Purpose |
 |---|---|---|---|
 | Raspberry Pi Pico 2 **W** (RP2350 + wireless) | $7 | Lab 1 | Now mandatory, not optional — every lab needs the radio |
-| SSD1306 OLED, 128×64, SPI *(reused from prerequisite kit)* | $5 | Lab 1 | Status and debug display |
+| 2.42" SSD1306/SSD1309 OLED, 128×64, SPI *(reused from prerequisite kit)* | $10 | Lab 1 | Status and debug display — the 2.42" size is preferred and costs ~$5 over a 1.3" |
 | INMP441 I²S MEMS microphone *(reused)* | $3 | Lab 1 | Wake-word capture, unchanged from the prerequisite course |
 | Three momentary push buttons | $2 | Lab 1 | Mode select, plus up/down for volume and threshold adjustment |
 | MAX98357A I²S class-D amplifier breakout | $4 | Lab 1 | Turns synthesized speech bytes into an analog speaker signal |

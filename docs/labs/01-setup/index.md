@@ -177,7 +177,7 @@ Two independent I²S buses, plus SPI for the display and three plain GPIO inputs
    arrows show which end drives the wire
 ```
 
-**Display — SSD1306 128×64 OLED (SPI0)**
+**Display — 2.42" SSD1306/SSD1309 128×64 OLED (SPI0)**
 
 | OLED | Pico 2 | Purpose |
 |---|---|---|
@@ -188,6 +188,10 @@ Two independent I²S buses, plus SPI for the display and three plain GPIO inputs
 | RES | **GPIO 4** | reset |
 | DC | **GPIO 5** | data/command select |
 | CS | **GPIO 6** | chip select |
+
+The 2.42-inch module is the preferred size — same 128×64 resolution and pinout as the smaller
+0.96"/1.3" versions, so no code changes, but readable from across a room. See [Appendix
+A](../../appendices/parts-list/index.md#why-the-242-display-and-what-it-costs).
 
 **Microphone — INMP441 (I²S bus 0, receive)**
 
