@@ -44,7 +44,34 @@ N = 256                                  # samples per frame
 FRAME_MS = N / config.SAMPLE_RATE * 1000  # 20.0 ms of sound per frame
 
 BANDS = 12                               # band energies per frame
-BAND_LO_HZ = 150
+
+# 350 Hz, not the 150 it started as, and this one is measured rather than
+# chosen. Ten recorded takes of "Hey Pico" were analyzed against the noise
+# spectrum Lab 3 captured in the same room
+# (src/tools/analyze-wake-words.py, docs/sounds/):
+#
+#     band        Hz        speech%   furnace%   speech/noise
+#      0-2    150- 350        15.1      89.4      -6 to -11 dB
+#      3      350- 500        29.3       4.8           +7.9 dB
+#      4      500- 650        44.0       3.2          +11.4 dB
+#      5-11   650-6000        11.5       2.6      +3.5 to +13 dB
+#
+# Nearly three quarters of the phrase lives between 350 and 650 Hz, and nearly
+# nine tenths of the furnace fan lives below 350. They hardly overlap at all,
+# so the first three bands were contributing almost nothing but fan.
+#
+# Starting at 350 keeps 84.9% of the speech while discarding 89.4% of the
+# noise: +9.0 dB. Starting at 500 scores marginally better on paper, +9.8 dB,
+# and is the wrong answer -- it buys that last 0.8 dB by throwing away another
+# 29% of the phrase. Optimizing the ratio alone would pick it; optimizing the
+# ratio while keeping the signal picks 350.
+#
+# This is not only a loudness fix. Frames are mean-subtracted and L2-normalized
+# before matching, so a band full of steady fan noise is a band that agrees
+# with itself take after take -- which is how a template ends up describing the
+# room instead of the phrase, and how the fan came to score HIGHER (0.932) than
+# real speech (0.890) in the session that prompted this change.
+BAND_LO_HZ = 350
 BAND_HI_HZ = 6000
 
 # The reference wake phrase for this course is "Hey Pico" (see the lab writeup
@@ -119,7 +146,7 @@ REFRACTORY_MS = 1500
 DISPLAY_EVERY = 8                        # redraw every 8 frames (~160 ms)
 
 PROGRAM = "04-wake-word-test"
-VERSION = "1.4.0"               # 1.4.0: speaker preallocated; 32-frame window
+VERSION = "1.6.0"               # 1.6.0: gate on band energy, not broadband
 
 MODE_LISTEN = 0
 MODE_ENROLL = 1
@@ -169,6 +196,22 @@ raw = bytearray(N * 4)
 # Hann window, precomputed once. Without it, a phrase that starts mid-frame
 # smears energy across every band and the template match degrades badly.
 window = [0.5 - 0.5 * math.cos(2 * math.pi * i / (N - 1)) for i in range(N)]
+
+# Turns a sum of band powers back into an RMS in the SAME 24-bit units the old
+# time-domain gate used, so SPEECH_FLOOR keeps meaning what it looks like it
+# means and calibration.json stays readable next to it.
+#
+# Three factors, all of them measurable rather than assumed:
+#   * fft_asm is an unnormalized forward DFT -- verified on the board, where
+#     sum|X|^2 came to 255.99997 * sum x^2 for N=256. That is the N.
+#   * A real signal splits its energy evenly between the two halves of the
+#     spectrum, and the band loop only ever walks the lower half, so what it
+#     accumulates is half the total. That is the 2.
+#   * The Hann window throws away power before the transform sees it. Measured
+#     off the actual window array rather than using the textbook 3/8, so this
+#     cannot drift if the window ever changes.
+WINDOW_POWER = sum(w * w for w in window) / N
+BAND_RMS_SCALE = 2.0 / (N * N * WINDOW_POWER)
 
 # Log-spaced band edges, in FFT bin numbers. Speech energy is not spread evenly
 # across frequency, so neither are the bands: low bands are narrow, high bands
@@ -229,26 +272,41 @@ def feature_frame():
         total += w >> 8
     dc = total / count
 
-    energy = 0.0
     for i in range(N):
         s = ((words[i] >> 8) - dc) if i < count else 0.0
-        energy += s * s
         re[i] = s * window[i]
         im[i] = 0.0
-    rms = math.sqrt(energy / N)
 
     fft.run(re, im)
 
     # Band energies. Power, not magnitude -- no sqrt per bin, and the log
     # afterwards flattens the difference anyway.
+    band_total = 0.0
     vec = [0.0] * BANDS
     for b in range(BANDS):
         acc = 0.0
         for k in range(edges[b], edges[b + 1]):
             acc += re[k] * re[k] + im[k] * im[k]
+        band_total += acc
         # log compression: speech spans a huge dynamic range, and the quiet
         # bands carry as much identity as the loud ones.
         vec[b] = math.log(1.0 + acc / (edges[b + 1] - edges[b]))
+
+    # The loudness gate, measured over the SAME bands the match is computed
+    # from -- which the old one was not.
+    #
+    # It used to be a plain time-domain RMS over the raw samples, and that was
+    # a bug hiding in a reasonable-looking line. It counted every hertz the
+    # microphone could hear, including the 89% of this room's furnace noise
+    # that sits below 350 Hz where the detector has no bands at all. The gate
+    # was therefore set almost entirely by energy the matcher never sees, which
+    # is how SPEECH_FLOOR ended up below the room's own median noise frame and
+    # let eight fan triggers through in one session.
+    #
+    # Summing the bands instead costs 12 adds and saves 256 multiply-adds,
+    # because the per-sample energy loop above is now gone. It is the rare
+    # correctness fix that also buys back about 1.9 ms of the 20 ms frame.
+    rms = math.sqrt(BAND_RMS_SCALE * band_total)
 
     # Subtract the frame's mean log-energy. This step is not optional, and
     # leaving it out is a genuinely instructive failure: raw log energies all

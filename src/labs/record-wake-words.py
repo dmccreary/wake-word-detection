@@ -11,9 +11,10 @@ Each take is written to a separate file:
 
     sounds/hey-pico-01.wav ... sounds/hey-pico-10.wav
 
-Fetch them all afterwards with:
+Fetch them afterwards into docs/sounds/, which is where the Wake Word Explorer
+dashboard serves them from:
 
-    mpremote connect <port> fs cp -r :sounds .
+    mpremote connect <port> fs cp :sounds/*.wav docs/sounds/
 
 and delete them from the board when you are done -- ten takes is about 768 KB,
 and the Pico 2's filesystem only has ~3 MB in it. Note that `fs rm -r` does NOT
@@ -225,7 +226,15 @@ def measure_rms():
             v -= 65536
         acc += v * v
     rms16 = (acc / TOTAL_SAMPLES) ** 0.5
-    return rms16 * (1 << GAIN_SHIFT)
+    # Back to 24-bit units. The file holds `w >> (16 - GAIN_SHIFT)` while a
+    # 24-bit sample is `w >> 8`, so the stored value sits 8 - GAIN_SHIFT bits
+    # low -- a factor of 64 at the default, not the 4 that GAIN_SHIFT alone
+    # suggests. Getting this wrong does not make the number look wrong: it
+    # stays perfectly self-consistent and is quietly 24 dB out, which is
+    # exactly how it survived a full session of being read off and reasoned
+    # about. The peak reported alongside it comes from `peak_word >> 8` and
+    # was right all along, which is what caught it.
+    return rms16 * (1 << (8 - GAIN_SHIFT))
 
 
 def save_take(n):

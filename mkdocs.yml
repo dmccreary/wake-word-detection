@@ -48,7 +48,9 @@ nav:
       - 4. Wake Word Test: labs/04-wake-word-test/index.md
 
   - Appendices:
+      - List of Appendices: appendices/index.md
       - A. Parts List and Cost: appendices/parts-list/index.md
+      - B. Vosk Speech-to-Text: appendices/vosk/index.md
 
   - Learning Graph:
       - Introduction: learning-graph/index.md
@@ -58,6 +60,10 @@ nav:
       # - Concept Taxonomy: learning-graph/concept-taxonomy.md
       # - Graph Quality Analysis: learning-graph/quality-metrics.md
       # - Taxonomy Distribution: learning-graph/taxonomy-distribution.md
+
+  - Dashboards:
+      - List of Dashboards: dashboards/index.md
+      - Wake Word Explorer: dashboards/wake-word-explorer/index.md
 
   - MicroSims:
       - List of MicroSims: sims/index.md
@@ -120,6 +126,10 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.superfences
+  # Tabbed content — the ``=== "macOS"`` / ``=== "WSL"`` blocks in Appendix B
+  # put platform-specific setup side by side instead of one after the other.
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span

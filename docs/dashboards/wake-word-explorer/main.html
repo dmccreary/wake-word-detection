@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wake Word Explorer</title>
+<link rel="stylesheet" href="explorer.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+</head>
+<body>
+
+<div class="controls">
+  <div class="control-row">
+    <span class="title">Wake Word Explorer<span class="sub" id="source"></span></span>
+
+    <span class="group">
+      <span class="label">Take</span>
+      <span class="takebar" id="takebar"></span>
+    </span>
+
+    <span class="group">
+      <button id="play">&#9654;&nbsp; Play</button>
+      <label class="toggles"><label><input type="checkbox" id="playFiltered" checked> through the filter</label></label>
+    </span>
+  </div>
+
+  <div class="control-row">
+    <span class="group">
+      <span class="label">BAND_LO_HZ</span>
+      <input type="range" id="cutoff" min="0" max="0" step="1">
+      <span class="readout" id="cutoffOut">350 Hz</span>
+    </span>
+
+    <span class="group">
+      <span class="label">Noise reference</span>
+      <select id="noiseRef">
+        <option value="takes">quiet frames in these takes</option>
+        <option value="lab3">Lab 3 furnace spectrum</option>
+      </select>
+    </span>
+
+    <span class="group toggles" id="toggles"></span>
+  </div>
+
+  <div class="verdict" id="verdict"></div>
+</div>
+
+<div class="stage">
+  <p class="hint" id="hint"></p>
+  <div id="plots"><div class="loading">Loading takes&hellip;</div></div>
+</div>
+
+<script src="explorer.js"></script>
+</body>
+</html>

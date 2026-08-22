@@ -99,3 +99,24 @@
 .md-status--scaffold:hover:after { background-color: #b71c1c; }
 .md-status--built:hover:after    { background-color: #ef6c00; }
 .md-status--approved:hover:after { background-color: #1b5e20; }
+
+/* --- Dashboard embeds ---------------------------------------------------
+   A dashboard is not prose and does not want a 61rem reading column: ten
+   stacked waveforms beside ten spectra need real width. Pages that embed one
+   wrap it in .dashboard-embed and hide the table of contents in their front
+   matter; these rules widen the grid for exactly those pages. */
+.md-main__inner.md-grid:has(.dashboard-embed) {
+  max-width: none;
+}
+
+.md-content__inner:has(.dashboard-embed) {
+  padding-left: 0.8rem;
+  padding-right: 0.8rem;
+}
+
+/* The global 2px blue iframe border fights the dashboard's own control bar. */
+.dashboard-embed iframe {
+  display: block;
+  border: solid 1px #d8dee4;
+  border-radius: 6px;
+}

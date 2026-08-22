@@ -56,13 +56,85 @@ button that no longer exists.
   Consider a shared `config.save_json(path, data, mic)` helper that owns the
   deinit/reinit dance so no future lab can get it wrong.
 
+- [x] **Fixed: `analyze-wake-words.py` reported every level 24 dB too low.**
+  `GAIN` was 4 where it needed to be 64. `record-wake-words.py` writes
+  `w >> (16 - GAIN_SHIFT)` while the 24-bit sample everything else quotes is
+  `w >> 8`, so the file holds `sample24 >> 6`. The 4 is the gain relative to a
+  straight 24-to-16 bit conversion, and that conversion has already divided by
+  256 — two different numbers that look like the same one.
+
+  Caught by cross-checking rather than by inspection: the takes' quiet frames
+  put the room at 6,879 in 24-bit units and Lab 3 measured the same room at
+  7,221 — 0.4 dB apart at 64, and 24.5 dB apart at 4. Every ratio the tool
+  prints (the spectrum table, the sweep, `BAND_LO_HZ = 350`) is unaffected and
+  was re-verified identical. What moved is every absolute level, which is
+  exactly what a comparison against `SPEECH_FLOOR` depends on. The factor now
+  lives in `wakeword_analysis.py` with its derivation and cross-check written
+  down beside it.
+
+- [x] **Fixed: the Explorer's listening filter was boosting, not cutting.**
+  Web Audio takes `BiquadFilterNode.Q` for lowpass and highpass in **decibels**,
+  so the reflexive `Q = 0.707` asks for a linear Q of 1.085 — a resonant filter
+  that adds 1.7 dB just above the corner. Two cascaded made the takes 2 dB
+  LOUDER through what was labeled a high-pass. Now a 4th-order Butterworth pair
+  (Q = −5.33 dB and +2.32 dB), verified with `getFrequencyResponse()`.
+
 - [ ] **Second clean NOISE run** to confirm the distribution shape is stable.
   One clean run said "acoustic transients" (`p75→p90` +1.5 dB, `p90→max`
   +3.4 dB). Worth one confirmation before treating it as settled.
 
 ---
 
-## P2 — The real detector improvement
+## P2 — Wake Word Explorer (class deliverable)
+
+- [x] **Build a Plotly dashboard called "Wake Word Explorer"** so students can
+  look at their own recordings from `record-wake-words.py` rather than taking
+  the numbers on faith. Seeing "Hey Pico" arrive as three energy bursts is what
+  turns the 32-frame window and the 350 Hz band edge into consequences instead
+  of settings someone handed them.
+
+  - **Overview view:** all 10 takes at once as small horizontal waveform
+    strips, stacked the way Audacity stacks tracks, with the FFT of each shown
+    alongside its waveform.
+  - **Drill-down:** selecting one take drops the dashboard to that file alone,
+    at full width, with the same views enlarged.
+  - **Controls along the top** to run analysis and filters across the takes.
+    At minimum: a high-pass sweep, so the 350 Hz decision can be seen and heard
+    rather than read off a table; a band-energy overlay using Lab 4's own 12
+    log-spaced bands; the per-frame RMS envelope with the measured noise floor
+    drawn in; and a spectrogram.
+
+  `src/tools/analyze-wake-words.py` already computes the envelope, the phrase
+  extent, and the band spectrum. The dashboard should share that math rather
+  than re-implement it, so the printed numbers and the plotted ones cannot
+  drift apart. The sample takes live in `docs/sounds/` -- inside `docs/` so the
+  dashboard can fetch them over the same web server that serves the book -- and
+  are committed on purpose: the dashboard needs real data on first run, before
+  a student has recorded anything of their own.
+
+  **Done.** Built at `docs/dashboards/wake-word-explorer/`, in the nav under
+  Dashboards. All four control requirements are in: a `BAND_LO_HZ` sweep over
+  16 stops that also filters playback, the 12 log-spaced bands drawn as
+  spectrogram axis ticks and edge lines, both RMS envelopes against the noise
+  floor and `SPEECH_FLOOR`, and a spectrogram. The overview stacks all ten
+  takes Audacity-style with each take's FFT beside it; clicking a strip drills
+  down to that take full width.
+
+  The shared-math requirement is met by extracting
+  `src/tools/wakeword_analysis.py`, which `analyze-wake-words.py` now imports
+  (verified byte-identical output before and after the refactor) and which
+  `build-explorer-data.py` uses to generate the dashboard's data file. The
+  browser only ever SUMS a spectrogram Python computed; Python ships a checksum
+  of every one of those sums, and the console reports agreement to 0.02 dB.
+  `src/tools/test_explorer_data.py` checks the same thing host-side — worst
+  error across all takes and cutoffs is 0.0023 dB.
+
+  Rebuild after re-recording with `python3 src/tools/build-explorer-data.py`.
+  Two real bugs fell out of building this; both are recorded under P1.
+
+---
+
+## P3 — The real detector improvement
 
 This is the most valuable open item and came directly out of the measured data.
 
@@ -74,6 +146,14 @@ This is the most valuable open item and came directly out of the measured data.
   Computing the gate from the summed band energies instead should drop the
   noise term by ~6 dB at far smaller cost to speech, and would likely lift the
   recommendation off the `capped-at-0.7x-speech` clamp it is stuck on today.
+
+  **Now measured, and better than the estimate.** The Explorer computes both
+  gates over the ten takes: at the peak of the phrase they are **0.3 dB**
+  apart, and on the quiet frames between words they are **15.1 dB** apart
+  (broadband 6,621, band-limited 1,163). The room therefore drops from 16.5 dB
+  below `SPEECH_FLOOR` to 31.6 dB below it at essentially no cost to speech —
+  15 dB, not 6. Lab 4 v1.6.0 in the working tree already makes this change; the
+  remaining work is re-measuring `SPEECH_FLOOR` against the new gate.
 
 - [ ] **Add a speech-spectrum pass to Lab 3.** Lab 3 measures a *noise*
   spectrum only, so how much speech energy lives below 400 Hz is unknown and
@@ -92,7 +172,7 @@ This is the most valuable open item and came directly out of the measured data.
 
 ---
 
-## P3 — Workflow and usability
+## P4 — Workflow and usability
 
 - [ ] **Load `calibration.json` at startup in Lab 3** so measurements
   accumulate across runs. Today NOISE and SPEECH must happen in a single
@@ -113,7 +193,7 @@ This is the most valuable open item and came directly out of the measured data.
 
 ---
 
-## P4 — Nice to have
+## P5 — Nice to have
 
 - [ ] **Extend `analyze-calibration.py`** to compare two calibration files, so
   "mic at 15 in" vs "mic at 8 in" is a diff rather than two printouts read side

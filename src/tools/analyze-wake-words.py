@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read the WAV takes from record-wake-words.py and say what they mean.
 
-    python3 src/tools/analyze-wake-words.py sounds/
+    python3 src/tools/analyze-wake-words.py docs/sounds/
 
 Lab 4 can only report what it already believes -- a score, a threshold, an RMS
 it measured with settings that may themselves be wrong. These recordings are
@@ -20,82 +20,69 @@ Pass a calibration.json as the second argument to compare the speech spectrum
 against the room noise Lab 3 measured -- that comparison is what decides
 BAND_LO_HZ, because a band is only worth keeping if speech beats noise in it.
 
+BAND_LO_HZ defaults to whatever Lab 4 currently uses, so the bands printed here
+are the bands the detector actually sees. Pass --lo=150 to widen the view back
+down to where the furnace lives, which is how the current 350 was chosen.
+
+Every number below is computed by `wakeword_analysis.py`, which the Wake Word
+Explorer dashboard also imports. To see any of these tables as a picture:
+
+    python3 src/tools/build-explorer-data.py
+    mkdocs serve   # then open /dashboards/wake-word-explorer/
+
 Runs on a host, not the Pico. Needs numpy.
 """
 
 import json
 import os
 import sys
-import wave
 
 import numpy as np
 
-# These MUST match Lab 4, or the answer is about some other detector.
-N = 256
-RATE = 12800
-BANDS = 12
-BAND_LO_HZ = 150
-BAND_HI_HZ = 6000
+import wakeword_analysis as wa
 
-# record-wake-words.py amplifies on the way to 16 bits so the files are not all
-# crammed into the bottom of their range. Undoing it here puts every level back
-# into the 24-bit units that calibration.json and Lab 4's console both use.
-GAIN = 4
+# These MUST match Lab 4, or the answer is about some other detector. They live
+# in wakeword_analysis so the dashboard cannot disagree with this script.
+N = wa.N
+RATE = wa.RATE
+BANDS = wa.BANDS
+BAND_LO_HZ = wa.BAND_LO_HZ      # matches Lab 4; override with --lo=HZ
+BAND_HI_HZ = wa.BAND_HI_HZ
 
 RAMP = " .:-=+*#%@"
 
 
-def band_edges():
-    """Lab 4's log-spaced band edges, recomputed exactly as the lab does."""
-    bin_hz = RATE / N
-    lo = max(1, int(BAND_LO_HZ / bin_hz))
-    hi = min(N // 2 - 1, int(BAND_HI_HZ / bin_hz))
-    ratio = (hi / lo) ** (1.0 / BANDS)
-    edges = [int(lo * ratio ** b) for b in range(BANDS + 1)]
-    for b in range(BANDS):
-        if edges[b + 1] <= edges[b]:
-            edges[b + 1] = edges[b] + 1
-    return edges
-
-
-def load(path):
-    """One take, as float samples in 24-bit units, framed like the detector."""
-    with wave.open(path, "rb") as w:
-        if w.getframerate() != RATE:
-            print("  warning: %s is %d Hz, expected %d"
-                  % (path, w.getframerate(), RATE))
-        x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
-    x = x.astype(np.float64) * GAIN
-    return x[:len(x) // N * N].reshape(-1, N)
-
-
-def frame_rms(frames):
-    return np.sqrt((frames * frames).mean(axis=1))
-
-
 def main():
-    folder = sys.argv[1] if len(sys.argv) > 1 else "sounds"
-    calib = sys.argv[2] if len(sys.argv) > 2 else None
+    global BAND_LO_HZ
+    args = []
+    for a in sys.argv[1:]:
+        if a.startswith("--lo="):
+            BAND_LO_HZ = float(a.split("=", 1)[1])
+        else:
+            args.append(a)
+    folder = args[0] if args else "sounds"
+    calib = args[1] if len(args) > 1 else None
+    print("bands: %.0f-%.0f Hz in %d log-spaced steps\n"
+          % (BAND_LO_HZ, BAND_HI_HZ, BANDS))
 
     names = sorted(f for f in os.listdir(folder) if f.endswith(".wav"))
     if not names:
         print("no .wav files in %s" % folder)
         return 1
 
-    takes = [(n, load(os.path.join(folder, n))) for n in names]
-    win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(N) / (N - 1))
-    edges = band_edges()
-    hz = [e * RATE / N for e in edges]
+    takes = [(n, wa.load(os.path.join(folder, n), warn=print)) for n in names]
+    edges = wa.band_edges(BAND_LO_HZ, BAND_HI_HZ, BANDS)
+    hz = wa.edges_hz(edges)
 
     # ---- envelopes -------------------------------------------------------
     print("=" * 72)
     print("ENVELOPE -- one character per %.0f ms frame, each take scaled to itself"
-          % (N / RATE * 1000))
+          % wa.FRAME_MS)
     print("=" * 72)
     for name, f in takes:
-        rms = np.maximum(frame_rms(f), 1e-9)
+        rms = np.maximum(wa.frame_rms(f), 1e-9)
         db = 20 * np.log10(rms)
-        lo, hi = np.percentile(db, 20), db.max()
+        lo, hi = np.percentile(db, wa.FLOOR_PERCENTILE), db.max()
         span = max(hi - lo, 1e-9)
         print("%s" % name)
         print("  " + "".join(
@@ -109,32 +96,32 @@ def main():
     # speech, set it near the peak and only the loudest vowel survives.
     print()
     print("=" * 72)
-    print("PHRASE EXTENT -- gate at noise floor + 10 dB")
+    print("PHRASE EXTENT -- gate at noise floor + %.0f dB" % wa.LOUD_DB)
     print("=" * 72)
     print("take                  floor  peak frame   first  last  frames    ms")
     spans = []
     peaks = []
     floors = []
     for name, f in takes:
-        rms = frame_rms(f)
-        floor = np.percentile(rms, 20)
-        on = np.where(rms > floor * 3.162)[0]
-        if not len(on):
+        rms = wa.frame_rms(f)
+        floor, first, last = wa.phrase_extent(rms)
+        if first is None:
             print("  %-20s  %5.0f  no frames above gate" % (name, floor))
             continue
-        span = on[-1] - on[0] + 1
+        span = last - first + 1
         spans.append(span)
         peaks.append(rms.max())
         floors.append(floor)
         print("  %-20s  %5.0f  %10.0f   %5d %5d  %6d %5.0f"
-              % (name, floor, rms.max(), on[0], on[-1], span, span * N / RATE * 1000))
+              % (name, floor, rms.max(), first, last, span, span * wa.FRAME_MS))
 
     spans = np.array(spans)
     print()
     print("  span frames : min %d  median %.0f  max %d"
           % (spans.min(), np.median(spans), spans.max()))
     print("  span ms     : min %.0f  median %.0f  max %.0f"
-          % (spans.min() * 20, np.median(spans) * 20, spans.max() * 20))
+          % (spans.min() * wa.FRAME_MS, np.median(spans) * wa.FRAME_MS,
+             spans.max() * wa.FRAME_MS))
     print("  -> TEMPLATE_FRAMES around %d covers the median take"
           % int(np.median(spans)))
 
@@ -153,28 +140,36 @@ def main():
           % np.median(floors))
 
     # ---- where is the energy --------------------------------------------
-    speech = np.zeros(BANDS)
-    quiet = np.zeros(BANDS)
-    for _, f in takes:
-        rms = frame_rms(f)
-        floor = np.percentile(rms, 20)
-        power = np.abs(np.fft.rfft(f * win, axis=1)) ** 2
-        loud, still = rms > floor * 3.162, rms <= floor * 1.259
-        for b in range(BANDS):
-            sl = slice(edges[b], edges[b + 1])
-            speech[b] += power[loud][:, sl].sum()
-            quiet[b] += power[still][:, sl].sum()
-    speech /= speech.sum()
-    quiet /= quiet.sum()
+    speech, quiet = wa.spectrum_shares(takes, edges)
 
     noise, noise_label = quiet, "quiet frames in these takes"
     if calib:
         with open(calib) as fh:
             spec = json.load(fh).get("spectrum")
-        if spec:
+        # Lab 3 stores the band EDGES it measured against, and they are only
+        # comparable band-for-band if they are the same edges we just used.
+        # Silently lining up two different frequency layouts would produce a
+        # table that looks authoritative and compares 350-400 Hz of speech
+        # against 150-200 Hz of noise.
+        # Compared with a one-bin tolerance, not for equality. The edges are
+        # built by int(lo * ratio ** b), and ratio ** BANDS lands a hair under
+        # its exact value on MicroPython's floats but exactly on it here -- so
+        # the board reports a top edge of 5950 Hz where this host computes
+        # 6000. One bin, and not worth rejecting a valid reference over.
+        tol = wa.BIN_HZ           # one FFT bin, 50 Hz
+        same = (spec and len(spec["edges_hz"]) == len(hz) and
+                all(abs(a - b) <= tol for a, b in zip(spec["edges_hz"], hz)))
+        if same:
             noise = np.array(spec["energy"], dtype=np.float64)
             noise /= noise.sum()
             noise_label = "Lab 3 noise spectrum (%s)" % os.path.basename(calib)
+        elif spec:
+            print("note: %s was measured on %.0f-%.0f Hz bands, not the %.0f-%.0f"
+                  % (os.path.basename(calib), spec["edges_hz"][0],
+                     spec["edges_hz"][-1], hz[0], hz[-1]))
+            print("      used here, so its spectrum cannot be lined up band for")
+            print("      band. Falling back to the quiet frames in these takes.")
+            print("      Re-run with --lo=%.0f to use it." % spec["edges_hz"][0])
 
     print()
     print("=" * 72)
@@ -190,18 +185,14 @@ def main():
     print()
     print("Raising BAND_LO_HZ discards the low bands entirely:")
     print("  BAND_LO_HZ   speech kept   noise kept   SNR change")
-    base = np.log10(speech.sum() / noise.sum())
-    best = (0, -99)
-    for k in range(6):
-        s, n = speech[k:].sum(), noise[k:].sum()
-        gain = 10 * (np.log10(s / n) - base)
-        if gain > best[1]:
-            best = (k, gain)
+    rows = wa.sweep(speech, noise, hz)
+    best = max(rows, key=lambda r: r[3])
+    for cut, s, n, gain in rows:
         print("     %5.0f       %6.1f%%      %6.1f%%      %+5.1f dB"
-              % (hz[k], 100 * s, 100 * n, gain))
+              % (cut, 100 * s, 100 * n, gain))
     print()
     print("  -> best SNR at BAND_LO_HZ = %.0f (%+.1f dB), keeping %.0f%% of speech"
-          % (hz[best[0]], best[1], 100 * speech[best[0]:].sum()))
+          % (best[0], best[3], 100 * best[1]))
     print("     Judge this on speech kept as well as dB: a band that buys 1 dB")
     print("     while throwing away a third of the phrase is a bad trade.")
     return 0

@@ -1,0 +1,189 @@
+/* Wake Word Explorer -- styling only. All measurement lives in Python. */
+
+:root {
+  --ink: #1f2933;
+  --ink-soft: #52606d;
+  --ink-faint: #7b8794;
+  --rule: #d8dee4;
+  --panel: #ffffff;
+  --page: #f4f6f8;
+  --primary: #1565c0;
+  --primary-soft: #e3f0fd;
+  --accent: #e64a19;
+  --warn: #c62828;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+}
+
+/* ---- control bar --------------------------------------------------- */
+
+.controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+  box-shadow: 0 1px 4px rgba(31, 41, 51, 0.06);
+  padding: 10px 14px;
+}
+
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+.control-row + .control-row { margin-top: 9px; }
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.group > .label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.title .sub {
+  font-weight: 400;
+  color: var(--ink-faint);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+button, select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled), select:hover { border-color: var(--primary); }
+button:disabled { color: var(--ink-faint); cursor: not-allowed; opacity: 0.6; }
+button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.takebar { display: flex; flex-wrap: wrap; gap: 4px; }
+.takebar button { padding: 3px 8px; font-family: var(--mono); font-size: 12px; }
+
+input[type="range"] { width: 210px; accent-color: var(--primary); }
+
+.readout {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 600;
+  min-width: 62px;
+}
+
+.toggles { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+.toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toggles input { accent-color: var(--primary); margin: 0; }
+
+/* ---- the verdict strip ---------------------------------------------- */
+
+.verdict {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 26px;
+  align-items: baseline;
+  background: var(--primary-soft);
+  border-radius: 6px;
+  padding: 7px 12px;
+  margin-top: 9px;
+  font-size: 13px;
+}
+
+.verdict .stat { white-space: nowrap; }
+.verdict .stat b { font-family: var(--mono); font-size: 14px; }
+.verdict .stat span { color: var(--ink-soft); }
+.verdict .note { color: var(--ink-soft); font-size: 12.5px; font-style: italic; }
+.verdict .good { color: #2e7d32; }
+.verdict .bad { color: var(--warn); }
+
+/* ---- plot area ------------------------------------------------------ */
+
+.stage { padding: 12px 14px 28px; }
+
+.plot {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.plot h2 {
+  margin: 0;
+  padding: 9px 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.plot p {
+  margin: 2px 12px 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.hint {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  margin: 0 0 10px;
+}
+
+.loading, .oops {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+.oops { color: var(--warn); }
+.oops code {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  input[type="range"] { width: 140px; }
+  .control-row { gap: 6px 12px; }
+}

@@ -12,7 +12,7 @@
 # Everything here runs on a plain Pico 2. The Pico 2 W's radio is not touched
 # until the networking labs.
 
-CONFIG_VERSION = "2.3.0"        # 2.3.0: SPEECH_FLOOR measured in the basement shop
+CONFIG_VERSION = "2.4.0"        # 2.4.0: SPEECH_FLOOR is now a BAND-LIMITED level
 
 from machine import Pin, SPI, I2S
 import math
@@ -79,18 +79,37 @@ FULL_SCALE = 8388608  # 2^23, the largest magnitude a 24-bit sample can hold
 # SPEECH_FLOOR is the loudness gate that separates "someone is talking" from
 # "the room is just sitting there". Lab 4's detector uses it so that silence
 # cannot match silence -- normalized noise correlates with normalized noise
-# perfectly well, so score alone is not enough.
+# perfectly well, so score alone is not enough. This gate is the ONLY thing
+# separating the two; the similarity score cannot do it, by construction.
 #
-# The default below is a starting point for an ordinary quiet room, NOT a
-# universal constant. Lab 3 measures your actual noise floor and speaking level
-# and prints a value to paste here. A floor that is too high reads as "the
-# detector cannot hear me"; too low, and room noise scores against the
-# template all day.
+# THIS IS A BAND-LIMITED LEVEL, not a broadband one. Since config v2.4.0 the
+# number is energy inside Lab 4's feature bands (350-6000 Hz) and nowhere else.
+# The distinction is not academic: measured in the room below, 15.6 dB of the
+# noise sits outside those bands, so a broadband floor is set mostly by sound
+# the detector never looks at. That mistake is what put an earlier value BELOW
+# the room's own median noise frame and let the furnace fire the detector eight
+# times in one session. A pre-2.4.0 value pasted in here will be far too high.
+#
+# The value below is NOT a universal constant. Lab 3 measures your room and
+# your voice and prints a line to paste here. Too high reads as "the detector
+# cannot hear me"; too low and the room scores against the template all day.
+#
+# Measured 2026-08-21, basement shop, 15 in from the mic, furnace running:
+#
+#     in-band noise   median   1194   worst  1942
+#     in-band speech  top-10%  42456   peak  86659
+#     SNR                      31.0 dB
+#
+# 0.00093 is 7769 in those units: +12.0 dB above the worst frame of 250
+# measured in silence, +14.8 dB below the top decile of speech. Lab 3 weighs
+# three rules and they agreed to within 0.8 dB here, which is the real reason
+# to trust it -- the previous calibration's rules spanned 10.4 dB and the
+# "never gate out your own voice" cap was what ended up binding.
 #
 # The INMP441 is specified at -26 dBFS for a 94 dB SPL input, which makes the
-# conversion dBFS = SPL - 120. The default works out to roughly 58 dB SPL:
-# above a quiet office, below conversation at a metre.
-SPEECH_FLOOR = FULL_SCALE * 0.00530
+# conversion dBFS = SPL - 120. The broadband level of that same room was
+# ~59 dB SPL: above a quiet office, below conversation at a metre.
+SPEECH_FLOOR = FULL_SCALE * 0.00093
 
 # INMP441 sensitivity, used to turn a measured level into an estimated sound
 # pressure level. Nominal from the datasheet -- units vary by about +/-1 dB and

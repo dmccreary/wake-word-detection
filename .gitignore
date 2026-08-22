@@ -22,3 +22,6 @@ Thumbs.db
 .vscode/
 .idea/
 ~$*
+
+# Vosk speech model -- 68 MB, downloaded by the host server, not committed
+models/

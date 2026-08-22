@@ -54,7 +54,7 @@ PROGRAM = "03-mic-calibration"
 # button. 1.6.0: buttons latched by IRQ *and* polling, polled during measurements.
 # 1.5.0: buttons latched by IRQ. 1.4.0: two buttons + CLEAR mode, crash-safe JSON write, full mic-buffer
 # drain before each measurement, per-measurement timing and short-read detection.
-VERSION = "1.7.0"
+VERSION = "1.8.0"   # 1.8.0: levels measured in Lab 4's band, not broadband
 
 RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
 
@@ -64,6 +64,19 @@ RESULTS_FILE = "calibration.json"        # written to the Pico's own flash
 ROOM_NOTE = "The room is my shop in the basement and there is a furnace fan running. I sit 15 inches from the Mic above the display over the Pico 2."
 
 BANDS = 12                               # must match Lab 4
+
+# TWO band ranges, deliberately, because this lab does two different jobs.
+#
+# GATE_* must track Lab 4 exactly. Lab 4 gates on the energy inside its own
+# feature bands, so a SPEECH_FLOOR measured over any other range is a number
+# about a different quantity. When Lab 4's BAND_LO_HZ moves, this moves.
+GATE_LO_HZ = 350                         # must match Lab 4's BAND_LO_HZ
+GATE_HI_HZ = 6000                        # must match Lab 4's BAND_HI_HZ
+
+# BAND_* stays wide on purpose. The SPECTRUM mode is a diagnostic, and its
+# entire value is showing you where the noise lives -- including the region
+# Lab 4 has deliberately stopped listening to. Narrowing this to match the
+# gate would hide the furnace, which is the one thing you most need to see.
 BAND_LO_HZ = 150
 BAND_HI_HZ = 6000
 
@@ -109,21 +122,43 @@ except AttributeError:
 window = [0.5 - 0.5 * math.cos(2 * math.pi * i / (N - 1)) for i in range(N)]
 
 bin_hz = config.SAMPLE_RATE / N
-lo_bin = max(1, int(BAND_LO_HZ / bin_hz))
-hi_bin = min(N // 2 - 1, int(BAND_HI_HZ / bin_hz))
-ratio = (hi_bin / lo_bin) ** (1.0 / BANDS)
-edges = [int(lo_bin * (ratio ** b)) for b in range(BANDS + 1)]
-for b in range(BANDS):
-    if edges[b + 1] <= edges[b]:
-        edges[b + 1] = edges[b] + 1
+
+
+def log_edges(lo_hz, hi_hz):
+    """Lab 4's log-spaced band edges, in FFT bin numbers."""
+    lo = max(1, int(lo_hz / bin_hz))
+    hi = min(N // 2 - 1, int(hi_hz / bin_hz))
+    ratio = (hi / lo) ** (1.0 / BANDS)
+    e = [int(lo * (ratio ** b)) for b in range(BANDS + 1)]
+    for b in range(BANDS):
+        if e[b + 1] <= e[b]:
+            e[b + 1] = e[b] + 1
+    return e
+
+
+edges = log_edges(BAND_LO_HZ, BAND_HI_HZ)          # SPECTRUM display, 150 Hz up
+gate_edges = log_edges(GATE_LO_HZ, GATE_HI_HZ)     # the gate, matching Lab 4
+
+# Converts a sum of band powers into an RMS in the same 24-bit units as a
+# time-domain RMS, so the two levels this lab measures stay comparable. The
+# derivation and its verification live in Lab 4 next to the identical
+# constant -- if you change one, change both.
+WINDOW_POWER = sum(w * w for w in window) / N
+BAND_RMS_SCALE = 2.0 / (N * N * WINDOW_POWER)
 
 # Results, filled in as each measurement completes. None means "not yet run".
-noise_rms = None        # median frame RMS with the room quiet
-noise_max = None        # loudest frame seen while "quiet" -- the real enemy
-noise_pct = None        # full frame-RMS distribution of the quiet room
-speech_rms = None       # median frame RMS while talking
-speech_peak = None      # loudest frame while talking
-speech_pct = None       # full frame-RMS distribution while talking
+# Every *_rms below is now the BAND-LIMITED level -- the quantity Lab 4
+# actually gates on. The *_spl companions are broadband, kept only so the dB
+# SPL readings stay honest: SPL is a property of the whole sound in the room,
+# not of the slice of it this detector chose to listen to.
+noise_rms = None        # median in-band frame level with the room quiet
+noise_max = None        # loudest in-band frame while "quiet" -- the real enemy
+noise_pct = None        # full in-band distribution of the quiet room
+noise_spl_rms = None    # median BROADBAND level, for the dB SPL reading only
+speech_rms = None       # top-decile in-band frame level while talking
+speech_peak = None      # loudest in-band frame while talking
+speech_pct = None       # full in-band distribution while talking
+speech_spl_rms = None   # top-decile BROADBAND level, for dB SPL only
 clip_peak = None        # largest raw sample magnitude
 noise_bands = None      # per-band noise energy
 collect_stats = None    # timing/short-read stats from the last measurement
@@ -137,7 +172,22 @@ took, poll_buttons = config.latch_buttons(button_mode, button_select)
 
 
 def frame_rms():
-    """One frame: return (rms of the AC part, peak sample, samples read).
+    """One frame: return (in-band RMS, broadband RMS, peak sample, samples read).
+
+    TWO levels, because they answer two different questions and confusing them
+    is what made the last calibration useless.
+
+      * The IN-BAND level is what Lab 4 gates on -- energy inside the detector's
+        own feature bands and nowhere else. This is the number SPEECH_FLOOR is
+        expressed in, and the only one that predicts whether the detector will
+        hear you.
+      * The BROADBAND level is every hertz the microphone can pick up. It is
+        the honest basis for a dB SPL reading, and it is the wrong basis for a
+        gate: in the room this lab was written in, 89% of it was furnace noise
+        below 350 Hz that the detector never looks at.
+
+    Measuring the second and using it for the first is exactly how SPEECH_FLOOR
+    came to sit below the room's own median noise frame.
 
     The sample count is returned because readinto() is allowed to come back
     short. A short read is not an error, but it means the frame covers less
@@ -151,33 +201,46 @@ def frame_rms():
     for w in words:
         total += w >> 8
     dc = total / count
+
     energy = 0.0
     peak = 0
-    for w in words:
-        s = (w >> 8) - dc
+    for i in range(N):
+        s = ((words[i] >> 8) - dc) if i < count else 0.0
         energy += s * s
         a = s if s >= 0 else -s
         if a > peak:
             peak = a
-    return math.sqrt(energy / count), peak, count
+        re[i] = s * window[i]
+        im[i] = 0.0
+
+    fft.run(re, im)
+    band_total = 0.0
+    for k in range(gate_edges[0], gate_edges[BANDS]):
+        band_total += re[k] * re[k] + im[k] * im[k]
+
+    return (math.sqrt(BAND_RMS_SCALE * band_total),
+            math.sqrt(energy / count), peak, count)
 
 
 def collect(label, seconds_note):
     """Run one measurement for MEASURE_MS, returning sorted frame RMS values.
 
-    Returns (sorted_rms_list, peak_sample). A progress bar is drawn between
-    frames -- the mic keeps buffering during the redraw, and since this lab is
-    not doing continuous detection a few dropped frames cost nothing.
+    Returns (sorted in-band levels, sorted broadband levels, peak_sample). A
+    progress bar is drawn between frames -- the mic keeps buffering during the
+    redraw, and since this lab is not doing continuous detection a few dropped
+    frames cost nothing.
     """
     global collect_stats
     values = []
+    broad = []
     peak_sample = 0
     lo_count = hi_count = None
     t_start = time.ticks_ms()
     for f in range(FRAMES):
         poll_buttons()          # a press made mid-measurement must not be lost
-        r, p, c = frame_rms()
+        r, br, p, c = frame_rms()
         values.append(r)
+        broad.append(br)
         if lo_count is None or c < lo_count:
             lo_count = c
         if hi_count is None or c > hi_count:
@@ -214,7 +277,8 @@ def collect(label, seconds_note):
         print("     readinto() is returning short -- this measurement covers")
         print("     less audio than it claims. Do not trust it.")
     values.sort()
-    return values, peak_sample
+    broad.sort()
+    return values, broad, peak_sample
 
 
 def median(sorted_values):
@@ -240,15 +304,22 @@ def percentiles(sorted_values):
 
 
 def measure_noise():
-    global noise_rms, noise_max, noise_pct
+    global noise_rms, noise_max, noise_pct, noise_spl_rms
     countdown("Be QUIET", "measuring room")
-    vals, _ = collect("NOISE", "stay quiet...")
+    vals, broad, _ = collect("NOISE", "stay quiet...")
     noise_rms = median(vals)
     noise_max = vals[-1]
     noise_pct = percentiles(vals)
-    print("noise floor : median %8.0f  (%.1f dBFS, ~%.0f dB SPL)"
-          % (noise_rms, config.dbfs(noise_rms), config.spl(noise_rms)))
-    print("              worst  %8.0f  (%.1f dBFS)  <- the number that matters"
+    noise_spl_rms = median(broad)
+    # The SPL comes from the broadband level; everything the gate cares about
+    # comes from the in-band one. Printing both side by side is the point --
+    # the gap between them IS the noise the detector has stopped listening to.
+    print("noise floor : in-band median %8.0f  (%.1f dBFS)  <- gate units"
+          % (noise_rms, config.dbfs(noise_rms)))
+    print("              broadband     %8.0f  (~%.0f dB SPL), %.1f dB of it out of band"
+          % (noise_spl_rms, config.spl(noise_spl_rms),
+             config.dbfs(noise_spl_rms) - config.dbfs(noise_rms)))
+    print("              worst in-band %8.0f  (%.1f dBFS)  <- the number that matters"
           % (noise_max, config.dbfs(noise_max)))
     print("              spread p50->p99 %.1f dB, p50->max %.1f dB"
           % (config.dbfs(noise_pct["p99"]) - config.dbfs(noise_rms),
@@ -257,17 +328,20 @@ def measure_noise():
 
 
 def measure_speech():
-    global speech_rms, speech_peak, speech_pct
+    global speech_rms, speech_peak, speech_pct, speech_spl_rms
     countdown("Say 'Hey Pico'", "over and over")
-    vals, _ = collect("SPEECH", "keep talking...")
+    vals, broad, _ = collect("SPEECH", "keep talking...")
     speech_pct = percentiles(vals)
+    speech_spl_rms = broad[int(len(broad) * 0.9)]
     # The top decile is what a wake word actually looks like: most frames of
     # any utterance are the quiet parts between syllables.
     speech_peak = vals[-1]
     speech_rms = vals[int(len(vals) * 0.9)]
-    print("speech      : top-decile %8.0f  (%.1f dBFS, ~%.0f dB SPL)"
-          % (speech_rms, config.dbfs(speech_rms), config.spl(speech_rms)))
-    print("              peak       %8.0f  (%.1f dBFS)"
+    print("speech      : in-band top-decile %8.0f  (%.1f dBFS)  <- gate units"
+          % (speech_rms, config.dbfs(speech_rms)))
+    print("              broadband        %8.0f  (~%.0f dB SPL)"
+          % (speech_spl_rms, config.spl(speech_spl_rms)))
+    print("              in-band peak     %8.0f  (%.1f dBFS)"
           % (speech_peak, config.dbfs(speech_peak)))
     save_results()
 
@@ -275,7 +349,7 @@ def measure_speech():
 def measure_clip():
     global clip_peak
     countdown("Speak LOUDLY", "as loud as youll go")
-    _, clip_peak = collect("CLIP", "be loud!")
+    _, _, clip_peak = collect("CLIP", "be loud!")
     pct = clip_peak / config.FULL_SCALE * 100
     print("headroom    : peak sample %d = %.1f%% of full scale" % (clip_peak, pct))
     if pct > 90:
@@ -424,7 +498,7 @@ def save_results():
     """
     data = {
         "lab": 3,
-        "schema": 2,
+        "schema": 3,
         "program": PROGRAM,
         "version": VERSION,
         "config_version": config.CONFIG_VERSION,
@@ -440,8 +514,18 @@ def save_results():
             "bands": BANDS,
             "band_lo_hz": BAND_LO_HZ,
             "band_hi_hz": BAND_HI_HZ,
+            "gate_lo_hz": GATE_LO_HZ,
+            "gate_hi_hz": GATE_HI_HZ,
             "asm_fft": ASM,
             "speech_floor_in_config": config.SPEECH_FLOOR / config.FULL_SCALE,
+        },
+        # Which quantity every level in this file is measured in. Schema 2 and
+        # earlier had no such field and were broadband; a tool that finds one
+        # of those must not compare it against a band-limited SPEECH_FLOOR.
+        "gate": {
+            "lo_hz": GATE_LO_HZ,
+            "hi_hz": GATE_HI_HZ,
+            "units": "band-limited-rms-24bit",
         },
         "timing": collect_stats,
         "noise": None,
@@ -457,7 +541,8 @@ def save_results():
             "max": noise_max,
             "median_dbfs": config.dbfs(noise_rms),
             "max_dbfs": config.dbfs(noise_max),
-            "median_spl": config.spl(noise_rms),
+            "broadband_median": noise_spl_rms,
+            "median_spl": config.spl(noise_spl_rms),
             "percentiles": noise_pct,
         }
 
@@ -467,7 +552,8 @@ def save_results():
             "peak": speech_peak,
             "top_decile_dbfs": config.dbfs(speech_rms),
             "peak_dbfs": config.dbfs(speech_peak),
-            "top_decile_spl": config.spl(speech_rms),
+            "broadband_top_decile": speech_spl_rms,
+            "top_decile_spl": config.spl(speech_spl_rms),
             "percentiles": speech_pct,
         }
 
@@ -556,11 +642,11 @@ def clear_all():
     mode list means five seconds of measured silence cannot be destroyed by a
     stray press.
     """
-    global noise_rms, noise_max, noise_pct
-    global speech_rms, speech_peak, speech_pct
+    global noise_rms, noise_max, noise_pct, noise_spl_rms
+    global speech_rms, speech_peak, speech_pct, speech_spl_rms
     global clip_peak, noise_bands
-    noise_rms = noise_max = noise_pct = None
-    speech_rms = speech_peak = speech_pct = None
+    noise_rms = noise_max = noise_pct = noise_spl_rms = None
+    speech_rms = speech_peak = speech_pct = speech_spl_rms = None
     clip_peak = None
     noise_bands = None
     save_results()
@@ -580,7 +666,7 @@ def draw():
         else:
             oled.text("med %.0f dBFS" % config.dbfs(noise_rms), 0, 18, config.WHITE)
             oled.text("max %.0f dBFS" % config.dbfs(noise_max), 0, 30, config.WHITE)
-            oled.text("~%.0f dB SPL" % config.spl(noise_rms), 0, 42, config.WHITE)
+            oled.text("~%.0f dB SPL" % config.spl(noise_spl_rms), 0, 42, config.WHITE)
 
     elif mode == MODE_SPEECH:
         if speech_rms is None:
@@ -589,7 +675,7 @@ def draw():
             oled.text("SELECT to run", 0, 46, config.WHITE)
         else:
             oled.text("d90 %.0f dBFS" % config.dbfs(speech_rms), 0, 18, config.WHITE)
-            oled.text("~%.0f dB SPL" % config.spl(speech_rms), 0, 30, config.WHITE)
+            oled.text("~%.0f dB SPL" % config.spl(speech_spl_rms), 0, 30, config.WHITE)
             if noise_rms:
                 snr = config.dbfs(speech_rms) - config.dbfs(noise_rms)
                 oled.text("SNR %.0f dB" % snr, 0, 42, config.WHITE)
